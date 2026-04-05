@@ -395,6 +395,53 @@
       margin-top: 8px;
     }
 
+
+
+    .timeline-track {
+      position: relative;
+      margin-top: 6px;
+    }
+
+    .timeline-range {
+      margin-top: 0;
+    }
+
+    .timeline-marker {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      width: 2px;
+      border-radius: 999px;
+      transform: translateX(-50%);
+      pointer-events: none;
+      display: none;
+      z-index: 2;
+    }
+
+    .timeline-marker::before {
+      content: attr(data-label);
+      position: absolute;
+      top: -18px;
+      left: 50%;
+      transform: translateX(-50%);
+      padding: 2px 6px;
+      border-radius: 999px;
+      background: rgba(5, 13, 28, 0.86);
+      border: 1px solid rgba(255,255,255,0.10);
+      color: var(--text);
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      white-space: nowrap;
+    }
+
+    .timeline-marker.live {
+      background: rgba(121,255,201,0.95);
+      box-shadow: 0 0 12px rgba(121,255,201,0.35);
+    }
+
+
+
     @media (max-width: 1080px) {
       .timeline {
         bottom: 320px;
@@ -442,6 +489,8 @@
     .scene-label.planet {
       color: #d7e6ff;
     }
+
+
 
 
 
@@ -554,7 +603,10 @@
 
   <div class="overlay timeline">
     <div class="label">Projected timeline</div>
-    <input id="timelineRange" class="timeline-range" type="range" min="0" max="1000" step="1" value="1000" />
+    <div class="timeline-track">
+      <input id="timelineRange" class="timeline-range" type="range" min="0" max="1000" step="1" value="1000" />
+      <div id="timelineLiveMarker" class="timeline-marker live" data-label="LIVE"></div>
+    </div>
     <div class="timeline-row">
       <span id="timelineStart" class="subtle">—</span>
       <span id="timelineCurrent" class="timeline-current">—</span>
@@ -564,7 +616,6 @@
       <button id="timelineNow" class="menu-button" type="button">Live time</button>
     </div>
   </div>
-
 
   <div class="overlay legend">
     <div class="label">Legend</div>
@@ -614,6 +665,7 @@
     const DB_VERSION = 1;
     const DB_KV_STORE = 'kv';
     const DB_CONFIG_STORE = 'configs';
+
 
 
 
@@ -675,8 +727,10 @@
       showObjectLabels: true,
       showBrightStarLabels: false,
       showPlanets: true,
-      showPlanetLabels: true
+      showPlanetLabels: true,
+      timeDisplayMode: 'UTC'
     };
+
 
 
 
@@ -718,6 +772,7 @@
       importFile: document.getElementById('importFile'),
       resetConfig: document.getElementById('resetConfig'),
       timelineRange: document.getElementById('timelineRange'),
+      timelineLiveMarker: document.getElementById('timelineLiveMarker'),
       timelineStart: document.getElementById('timelineStart'),
       timelineCurrent: document.getElementById('timelineCurrent'),
       timelineEnd: document.getElementById('timelineEnd'),
@@ -876,10 +931,30 @@
             );
         }
 
-    /* Formats a UTC timestamp for the overlay. */
+    /* Formats a display timestamp for the overlay in UTC or Greenwich/London time. */
         function formatUtc(ms) {
           if (!Number.isFinite(ms)) {
             return '—';
+          }
+
+          const mode = state && state.settings ? state.settings.timeDisplayMode : 'UTC';
+
+          if (mode === 'Greenwich') {
+            const formatter = new Intl.DateTimeFormat('en-GB', {
+              timeZone: 'Europe/London',
+              year: 'numeric',
+              month: '2-digit',
+              day: '2-digit',
+              hour: '2-digit',
+              minute: '2-digit',
+              second: '2-digit',
+              hour12: false,
+              timeZoneName: 'short'
+            });
+
+            const parts = formatter.formatToParts(new Date(ms));
+            const map = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+            return `${map.year}-${map.month}-${map.day} ${map.hour}:${map.minute}:${map.second} ${map.timeZoneName}`;
           }
 
           const iso = new Date(ms).toISOString();
@@ -1712,24 +1787,73 @@
           return Math.max(state.oemStartMs, Math.min(nowMs, state.oemStopMs));
         }
 
-/* Syncs the projected timeline overlay with the active projected time. */
+/* Syncs the projected timeline overlay with the active projected time and live-time reference marker. */
         function syncTimelineUi(nowMs) {
           if (!state.oemStartMs || !state.oemStopMs) {
+            if (refs.timelineLiveMarker) {
+              refs.timelineLiveMarker.style.display = 'none';
+            }
             return;
           }
 
           const spanMs = Math.max(1, state.oemStopMs - state.oemStartMs);
-          const liveRatio = Math.max(0, Math.min(1, (Math.max(state.oemStartMs, Math.min(nowMs, state.oemStopMs)) - state.oemStartMs) / spanMs));
+          const liveNowRatio = Math.max(
+            0,
+            Math.min(1, (Math.max(state.oemStartMs, Math.min(nowMs, state.oemStopMs)) - state.oemStartMs) / spanMs)
+            );
+
           const activeRatio = state.settings.timelineScrubActive
           ? Math.max(0, Math.min(1, state.settings.projectedTimelineRatio))
-          : liveRatio;
+          : liveNowRatio;
 
           refs.timelineRange.value = String(Math.round(activeRatio * 1000));
           refs.timelineStart.textContent = formatUtc(state.oemStartMs);
           refs.timelineEnd.textContent = formatUtc(state.oemStopMs);
           refs.timelineCurrent.textContent = `${formatUtc(state.projectedTimeMs || getActiveProjectedTimeMs(nowMs))} · ${(activeRatio * 100).toFixed(1)}%`;
           refs.timelineNow.classList.toggle('active', !state.settings.timelineScrubActive);
+
+          const liveRatio = getLiveTimelineRatio();
+          if (refs.timelineLiveMarker && Number.isFinite(liveRatio)) {
+            refs.timelineLiveMarker.style.display = 'block';
+            refs.timelineLiveMarker.style.left = `${liveRatio * 100}%`;
+            refs.timelineLiveMarker.dataset.label = 'LIVE';
+          } else if (refs.timelineLiveMarker) {
+            refs.timelineLiveMarker.style.display = 'none';
+          }
         }
+
+
+
+
+
+/* Returns the live timeline ratio within the OEM time window. */
+        function getLiveTimelineRatio() {
+          if (!state.liveValid || !state.liveState || !Number.isFinite(state.liveState.timeMs) || !state.oemStartMs || !state.oemStopMs) {
+            return null;
+          }
+
+          const spanMs = Math.max(1, state.oemStopMs - state.oemStartMs);
+          const clampedMs = Math.max(state.oemStartMs, Math.min(state.liveState.timeMs, state.oemStopMs));
+          return Math.max(0, Math.min(1, (clampedMs - state.oemStartMs) / spanMs));
+        }
+
+/* Returns live reference values for the three projected charts. */
+        function getLiveChartReferences() {
+          if (!state.liveValid || !state.liveState) {
+            return null;
+          }
+
+          const liveMoonKm = computeMoonPositionKm(state.liveState.timeMs || Date.now());
+
+          return {
+            ratio: getLiveTimelineRatio(),
+            distance: magnitude(state.liveState.p),
+            velocity: state.liveState.v ? magnitude(state.liveState.v) * 3600 : null,
+            moonDistance: distance(state.liveState.p, liveMoonKm)
+          };
+        }
+
+
 
 /* Applies GUI-driven local transforms to both Orion models. */
         function applyOrionLocalTransforms() {
@@ -2182,10 +2306,18 @@
 
 
 
-
-
-/* Draws a sparkline chart into one overlay canvas and marks the current timeline position. */
-        function drawChart(canvas, values, color, cursorRatio = null) {
+/* Draws a sparkline chart with projected cursor and live reference markers. */
+        function drawChart(
+          canvas,
+          values,
+          color,
+          {
+            activeCursorRatio = null,
+            liveCursorRatio = null,
+            liveReferenceValue = null,
+            liveReferenceColor = '#79ffc9'
+          } = {}
+          ) {
           const ctx = canvas.getContext('2d');
           const width = canvas.width;
           const height = canvas.height;
@@ -2205,6 +2337,11 @@
             if (value > max) max = value;
           }
 
+          if (Number.isFinite(liveReferenceValue)) {
+            if (liveReferenceValue < min) min = liveReferenceValue;
+            if (liveReferenceValue > max) max = liveReferenceValue;
+          }
+
           if (min === max) {
             min -= 1;
             max += 1;
@@ -2219,6 +2356,7 @@
 
           ctx.strokeStyle = color;
           ctx.lineWidth = 2;
+          ctx.setLineDash([]);
           ctx.beginPath();
 
           values.forEach((value, index) => {
@@ -2234,47 +2372,88 @@
 
           ctx.stroke();
 
-          if (Number.isFinite(cursorRatio)) {
-            const x = Math.max(0, Math.min(width, cursorRatio * width));
-            ctx.strokeStyle = 'rgba(255,255,255,0.9)';
+          if (Number.isFinite(liveReferenceValue)) {
+            const y = height - ((liveReferenceValue - min) / (max - min)) * (height - 6) - 3;
+            ctx.strokeStyle = liveReferenceColor;
+            ctx.lineWidth = 1;
+            ctx.setLineDash([5, 4]);
+            ctx.beginPath();
+            ctx.moveTo(0, y);
+            ctx.lineTo(width, y);
+            ctx.stroke();
+          }
+
+          if (Number.isFinite(liveCursorRatio)) {
+            const x = Math.max(0, Math.min(width, liveCursorRatio * width));
+            ctx.strokeStyle = liveReferenceColor;
             ctx.lineWidth = 1.5;
+            ctx.setLineDash([5, 4]);
             ctx.beginPath();
             ctx.moveTo(x, 0);
             ctx.lineTo(x, height);
             ctx.stroke();
           }
+
+          if (Number.isFinite(activeCursorRatio)) {
+            const x = Math.max(0, Math.min(width, activeCursorRatio * width));
+            ctx.strokeStyle = 'rgba(255,255,255,0.92)';
+            ctx.lineWidth = 1.5;
+            ctx.setLineDash([]);
+            ctx.beginPath();
+            ctx.moveTo(x, 0);
+            ctx.lineTo(x, height);
+            ctx.stroke();
+          }
+
+          ctx.setLineDash([]);
         }
 
 
 
 
 
-
-/* Refreshes all projected charts and draws the active timeline cursor. */
+/* Refreshes projected charts with projected cursor and live-data reference lines. */
         function updateCharts() {
           if (!state.chartData) {
             return;
           }
 
+          const liveRef = getLiveChartReferences();
+
           drawChart(
             refs.chartDistance,
             state.chartData.distance,
             state.settings.projectedPathColor,
-            state.chartCursorRatio
+            {
+              activeCursorRatio: state.chartCursorRatio,
+              liveCursorRatio: liveRef ? liveRef.ratio : null,
+              liveReferenceValue: liveRef ? liveRef.distance : null,
+              liveReferenceColor: state.settings.liveColor
+            }
             );
 
           drawChart(
             refs.chartVelocity,
             state.chartData.velocity,
             state.settings.liveColor,
-            state.chartCursorRatio
+            {
+              activeCursorRatio: state.chartCursorRatio,
+              liveCursorRatio: liveRef ? liveRef.ratio : null,
+              liveReferenceValue: liveRef ? liveRef.velocity : null,
+              liveReferenceColor: state.settings.liveColor
+            }
             );
 
           drawChart(
             refs.chartMoonDistance,
             state.chartData.moonDistance,
             state.settings.moonPathColor,
-            state.chartCursorRatio
+            {
+              activeCursorRatio: state.chartCursorRatio,
+              liveCursorRatio: liveRef ? liveRef.ratio : null,
+              liveReferenceValue: liveRef ? liveRef.moonDistance : null,
+              liveReferenceColor: state.settings.liveColor
+            }
             );
         }
 
@@ -2339,7 +2518,7 @@
 
 
 
-/* Focuses the camera on one hotspot and optionally points travel presets at a selected target. */
+/* Focuses the camera on one hotspot and uses actual live/projected Orion positions. */
         function focusPreset(name) {
           const lookTarget = getSceneTargetByName(state.settings.travelLookTarget || 'none');
 
@@ -2372,15 +2551,37 @@
             return;
           }
 
-          if (name === 'live' && state.liveValid && liveMarker) {
-            const target = liveMarker.position.clone();
-            moveCameraTo(target, target.clone().add(new THREE.Vector3(0.12, 0.08, 0.14)), 'live');
+          if (name === 'live') {
+            const target =
+            state.liveValid && state.liveState
+            ? toSceneVector(state.liveState.p)
+            : state.projectedState
+            ? toSceneVector(state.projectedState.p)
+            : liveOrionRoot && liveOrionRoot.visible
+            ? liveOrionRoot.position.clone()
+            : liveMarker
+            ? liveMarker.position.clone()
+            : null;
+
+            if (target) {
+              moveCameraTo(target, target.clone().add(new THREE.Vector3(0.12, 0.08, 0.14)), 'live');
+            }
             return;
           }
 
-          if (name === 'projected' && projectedMarker) {
-            const target = projectedMarker.position.clone();
-            moveCameraTo(target, target.clone().add(new THREE.Vector3(0.12, 0.08, 0.14)), 'projected');
+          if (name === 'projected') {
+            const target =
+            state.projectedState
+            ? toSceneVector(state.projectedState.p)
+            : projectedOrionRoot && projectedOrionRoot.visible
+            ? projectedOrionRoot.position.clone()
+            : projectedMarker
+            ? projectedMarker.position.clone()
+            : null;
+
+            if (target) {
+              moveCameraTo(target, target.clone().add(new THREE.Vector3(0.12, 0.08, 0.14)), 'projected');
+            }
           }
         }
 
@@ -2580,8 +2781,7 @@
 
 
 
-
-/* Builds the lil-gui panel for appearance, tracking, timeline, and Orion transform controls. */
+/* Builds the lil-gui panel for appearance, labels, planets, time, tracking, timeline, and Orion transforms. */
       function buildGui() {
         const gui = new GUI({
           title: 'Tracker settings',
@@ -2630,6 +2830,9 @@
 
         const solarSystem = gui.addFolder('Solar system');
         bindController(solarSystem.add(state.settings, 'showPlanets').name('Show planets'));
+
+        const timeFolder = gui.addFolder('Time');
+        bindController(timeFolder.add(state.settings, 'timeDisplayMode', ['UTC', 'Greenwich']).name('Display'));
 
         const stars = gui.addFolder('Stars');
         bindController(stars.add(state.settings, 'showStars').name('Visible'));
@@ -2985,9 +3188,14 @@
         }
       }
 
-    /* Refreshes all overlay text from live and projected state. */
+
+
+
+
+/* Refreshes overlay text from live and projected state with selected time display mode. */
       function updateHud(nowMs, moonKm) {
         const active = state.liveValid && state.liveState ? state.liveState : state.projectedState;
+        const timeModeLabel = state.settings.timeDisplayMode === 'Greenwich' ? 'Greenwich/London' : 'UTC';
 
         refs.modeValue.textContent = state.liveValid ? 'LIVE + OEM' : 'OEM ONLY';
         refs.modeSub.textContent = state.liveValid
@@ -2995,7 +3203,7 @@
         : 'Projected fallback active';
 
         refs.lastUpdateValue.textContent = state.lastLiveUpdateMs ? formatUtc(state.lastLiveUpdateMs) : '—';
-        refs.lastUpdateSub.textContent = state.lastLiveSource;
+        refs.lastUpdateSub.textContent = `${state.lastLiveSource} · ${timeModeLabel}`;
 
         if (active) {
           refs.earthDistanceValue.textContent = formatKm(magnitude(active.p));
@@ -3038,6 +3246,7 @@
           `OEM ${state.oemSamples.length ? `${state.oemSamples.length.toLocaleString()} samples` : 'loading'}`,
           `Live ${state.liveValid ? 'ok' : state.lastLiveSource}`,
           `Moon ${formatKm(magnitude(moonKm))}`,
+          `Time ${timeModeLabel}`,
           `Trails ${state.settings.showTrails ? 'visible' : 'hidden'}`
         ].join(' · ');
 
