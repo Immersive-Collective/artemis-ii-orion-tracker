@@ -491,19 +491,141 @@
     }
 
 
+/* Keeps lil-gui scrollable and moves mobile UI into compact foldable overlays. */
+.gui-host .lil-gui.root {
+  max-height: calc(100vh - 28px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.gui-host .lil-gui.root > .children {
+  overflow: visible;
+}
+
+.mobile-ui-bar {
+  display: none;
+  position: fixed;
+  top: 14px;
+  left: 14px;
+  z-index: 26;
+  gap: 8px;
+  padding: 8px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: var(--shadow);
+  backdrop-filter: var(--overlay-blur);
+  -webkit-backdrop-filter: var(--overlay-blur);
+}
+
+.legend {
+  display: none !important;
+}
+
+@media (max-width: 880px) {
+  .mobile-ui-bar {
+    display: flex;
+  }
+
+  .hud {
+    top: 62px;
+    left: 14px;
+    right: 14px;
+    width: auto;
+    max-height: min(20vh, 220px);
+    overflow: auto;
+    display: none;
+  }
+
+  body.mobile-hud-open .hud {
+    display: block;
+  }
+
+  .hud .title {
+    display: none;
+  }
+
+  .hud .grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px;
+  }
+
+  .hud .metric {
+    padding: 6px 0;
+  }
+
+  .hud .value {
+    font-size: 17px;
+  }
+
+  .timeline {
+    left: 14px;
+    right: 14px;
+    width: auto;
+    max-width: none;
+    bottom: 72px;
+    max-height: 34vh;
+    overflow: auto;
+    display: none;
+  }
+
+  body.mobile-timeline-open .timeline {
+    display: block;
+  }
+
+  .toolbar {
+    left: 14px;
+    right: 14px;
+    width: auto;
+    top: auto;
+    bottom: 14px;
+    padding: 8px;
+    gap: 0;
+  }
+
+  .toolbar .button-row {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+
+  .toolbar .button-row::-webkit-scrollbar {
+    display: none;
+  }
+
+  .toolbar .stack,
+  .toolbar #statusText {
+    display: none;
+  }
+
+  .charts {
+    display: none !important;
+  }
+
+  .gui-host {
+    top: 14px;
+    right: 14px;
+    bottom: auto;
+  }
+
+  .gui-host .lil-gui {
+    width: min(320px, calc(100vw - 28px));
+  }
+}
 
 
 
-  </style>
-  <script type="importmap">
-    {
-      "imports": {
-        "three": "https://cdn.jsdelivr.net/npm/three@0.162.0/build/three.module.js",
-        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.162.0/examples/jsm/",
-        "lil-gui": "https://cdn.jsdelivr.net/npm/lil-gui@0.19/+esm"
-      }
+</style>
+<script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.162.0/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.162.0/examples/jsm/",
+      "lil-gui": "https://cdn.jsdelivr.net/npm/lil-gui@0.19/+esm"
     }
-  </script>
+  }
+</script>
 </head>
 <body>
   <canvas id="viewer"></canvas>
@@ -569,10 +691,6 @@
       <button id="cameraLive" class="menu-button" type="button">Orion live</button>
       <button id="cameraProjected" class="menu-button" type="button">Orion projected</button>
       <button id="toggleTrails" class="menu-button" type="button">Hide trails</button>
-      <button id="saveConfig" class="menu-button" type="button">Save config</button>
-      <button id="exportConfig" class="menu-button" type="button">Export config</button>
-      <button id="importConfig" class="menu-button" type="button">Import config</button>
-      <button id="resetConfig" class="menu-button" type="button">Reset</button>
     </div>
 
 
@@ -584,6 +702,12 @@
     </div>
     <div id="statusText" class="subtle">starting…</div>
   </div>
+
+  <div class="mobile-ui-bar">
+    <button id="mobileHudToggle" class="menu-button" type="button">Tracker</button>
+    <button id="mobileTimelineToggle" class="menu-button" type="button">Timeline</button>
+  </div>
+
 
   <div class="overlay charts">
     <div class="chart-box">
@@ -637,11 +761,14 @@
     import * as THREE from 'three';
     import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
     import { TransformControls } from 'three/addons/controls/TransformControls.js';
+    import { VRButton } from 'three/addons/webxr/VRButton.js';
+    import { XRControllerModelFactory } from 'three/addons/webxr/XRControllerModelFactory.js';
+    import { XRHandModelFactory } from 'three/addons/webxr/XRHandModelFactory.js';
     import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
     import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
     import GUI from 'lil-gui';
 
-    const OEM_URL = './Artemis_II_OEM_2026_04_03_to_EI.asc';
+    const OEM_URL = './assets/Artemis_II_OEM_2026_04_03_to_EI.asc';
     const LIVE_ORION_URL = 'https://storage.googleapis.com/download/storage/v1/b/p-2-cen1/o/October%2F1%2FOctober_105_1.txt?alt=media';
     const EARTH_DAY_URL = './assets/earth/webp/2k_earth_daymap.webp';
     const EARTH_NIGHT_URL = './assets/earth/webp/2k_earth_nightmap.webp';
@@ -650,7 +777,6 @@
     const MOON_URL = './assets/moon/webp/2k_moon.webp';
     const MILKY_WAY_URL = './assets/milkyway/8k_stars_milky_way.jpg';
     const SUN_URL = './assets/sun/2k_sun.jpg';
-
 
     const ORION_GLB_URL = './assets/orion/orion-1.glb';
     const LIVE_POLL_MS = 1000;
@@ -665,6 +791,8 @@
     const DB_VERSION = 1;
     const DB_KV_STORE = 'kv';
     const DB_CONFIG_STORE = 'configs';
+    const DEFAULT_CONFIG_URL = './assets/orion-default.json';
+
 
 
 
@@ -724,11 +852,70 @@
       liveOrionRotationY: 0,
       liveOrionRotationZ: 0,
       liveOrionScale: 1,
+
+
       showObjectLabels: true,
       showBrightStarLabels: false,
       showPlanets: true,
       showPlanetLabels: true,
-      timeDisplayMode: 'UTC'
+      timeDisplayMode: 'UTC',
+
+      labelBodiesOffsetY: 0.05,
+      labelOrionOffsetY: 0.08,
+      labelPlanetsOffsetY: 0.04,
+      labelStarsOffsetY: 0.02,
+
+      xrShowControllers: true,
+      xrShowHands: true,
+
+      xrMoveEnabled: true,
+      xrMoveSpeed: 18,
+      xrMoveAcceleration: 36,
+      xrMoveDamping: 7,
+      xrMoveDeadzone: 0.16,
+      xrMoveForwardInverted: false,
+
+      xrTurnEnabled: true,
+      xrTurnSpeed: 1.45,
+      xrTurnInverted: false,
+
+      xrTravelMenuEnabled: true,
+      xrTravelMenuAnchor: 'rightController',
+      xrTravelMenuScale: 1,
+      xrTravelMenuRadius: 0.185,
+      xrTravelMenuOffsetX: 0,
+      xrTravelMenuOffsetY: 0.10,
+      xrTravelMenuOffsetZ: -0.62,
+      xrTravelMenuRotX: 0,
+      xrTravelMenuRotY: 0,
+      xrTravelMenuRotZ: 0,
+      xrTravelMenuStartOpen: false,
+
+      xrTravelTransitionMode: 'straight',
+      xrTravelTransitionDurationMs: 1600,
+      xrTravelCurveHeight: 0.18,
+      xrTravelPathBacktrack: 96,
+      xrTravelPathSamples: 18,
+
+      xrHandMenuEnabled: true,
+      xrHandMenuTogglePinchDistance: 0.018,
+      xrHandMenuSelectPinchDistance: 0.014,
+      xrHandMenuHoverRadius: 0.08,
+      xrHandMenuToggleCooldownMs: 380,
+      xrHandMenuSelectCooldownMs: 220,
+
+
+
+      xrTravelArrivalReference: 'controller',
+      xrTravelArrivalDistance: 0.28,
+      xrTravelArrivalHeight: 0.10
+
+
+
+
+
+
+
     };
 
 
@@ -771,6 +958,8 @@
       importConfig: document.getElementById('importConfig'),
       importFile: document.getElementById('importFile'),
       resetConfig: document.getElementById('resetConfig'),
+      mobileHudToggle: document.getElementById('mobileHudToggle'),
+      mobileTimelineToggle: document.getElementById('mobileTimelineToggle'),
       timelineRange: document.getElementById('timelineRange'),
       timelineLiveMarker: document.getElementById('timelineLiveMarker'),
       timelineStart: document.getElementById('timelineStart'),
@@ -814,7 +1003,34 @@
       transformSaveTimer: null,
       gui: null,
       transformControls: null,
-      lastTransformTarget: 'projected'
+      lastTransformTarget: 'projected',
+      xrSupported: false,
+      xrSessionActive: false,
+      xrMenuOpen: false,
+      xrMenuSelectedIndex: 0,
+      xrMenuNavAxisActive: false,
+      xrMenuNavAxisSign: 0,
+      xrMenuNavLastMoveAt: -999,
+      xrMenuNavRepeatLastAt: -999,
+      xrMoveVelocityX: 0,
+      xrMoveVelocityZ: 0,
+      xrTravelTween: null,
+      xrSavedDesktopPose: null,
+      lastFrameMs: 0,
+
+
+
+      xrMenuCurrentRotation: 0,
+      xrMenuTargetRotation: 0,
+      xrMenuOpenAlpha: 0,
+      xrHandMenuLeftWasPinching: false,
+      xrHandMenuRightWasPinching: false,
+      xrHandMenuLastToggleAt: -999,
+      xrHandMenuLastSelectAt: -999,
+      uiMobileHudOpen: false,
+      uiMobileTimelineOpen: false
+
+
     };
 
 
@@ -831,9 +1047,14 @@
     });
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.outputColorSpace = THREE.SRGBColorSpace;
+    renderer.xr.enabled = true;
 
     const camera = new THREE.PerspectiveCamera(45, 1, 0.0001, 50000);
     camera.position.set(10, 5, 12);
+
+    const xrRig = new THREE.Group();
+    scene.add(xrRig);
+    xrRig.add(camera);
 
     const controls = new OrbitControls(camera, refs.viewer);
     controls.enableDamping = true;
@@ -881,9 +1102,27 @@
     let solarPlanets = [];
     let brightStarAnchors = [];
     let labelEntries = [];
+    let xrButtonEl = null;
+    let xrControllerFactory = null;
+    let xrHandFactory = null;
+    let xrControllers = [];
+    let xrControllerGrips = [];
+    let xrHands = [];
+    let xrTravelMenuRoot = null;
+    let xrTravelMenuRing = null;
+    let xrTravelMenuButtons = [];
+    let xrTravelMenuDot = null;
 
     const raycaster = new THREE.Raycaster();
     const pointer = new THREE.Vector2();
+    const xrUp = new THREE.Vector3(0, 1, 0);
+    const xrTmpVecA = new THREE.Vector3();
+    const xrTmpVecB = new THREE.Vector3();
+    const xrTmpVecC = new THREE.Vector3();
+    const xrTmpVecD = new THREE.Vector3();
+    const xrTmpQuatA = new THREE.Quaternion();
+    const xrTmpQuatB = new THREE.Quaternion();
+
 
 
     const textureLoader = new THREE.TextureLoader();
@@ -1081,9 +1320,43 @@
           });
         }
 
-/* Loads persisted settings and camera state from localStorage and IndexedDB. */
+
+/* Loads the default config JSON file and keeps null on failure. */
+        async function loadDefaultConfigFile() {
+          try {
+            const response = await fetch(DEFAULT_CONFIG_URL, { cache: 'no-store' });
+
+            if (!response.ok) {
+              return null;
+            }
+
+            const payload = await response.json();
+
+            if (!payload || typeof payload !== 'object') {
+              return null;
+            }
+
+            return payload;
+          } catch {
+            return null;
+          }
+        }
+
+
+/* Loads file defaults first, then persisted settings and camera state from localStorage and IndexedDB. */
         async function restorePersistentState() {
           let loadedSettings = { ...defaultSettings };
+          let loadedCamera = null;
+
+          const fileDefaults = await loadDefaultConfigFile();
+
+          if (fileDefaults && fileDefaults.settings && typeof fileDefaults.settings === 'object') {
+            loadedSettings = { ...loadedSettings, ...fileDefaults.settings };
+          }
+
+          if (fileDefaults && fileDefaults.camera && typeof fileDefaults.camera === 'object') {
+            loadedCamera = fileDefaults.camera;
+          }
 
           try {
             const savedSettings = localStorage.getItem(LOCAL_STORAGE_KEY);
@@ -1095,8 +1368,7 @@
           try {
             const savedCamera = localStorage.getItem(LOCAL_CAMERA_KEY);
             if (savedCamera) {
-              const cameraState = JSON.parse(savedCamera);
-              applyCameraState(cameraState, false);
+              loadedCamera = JSON.parse(savedCamera);
             }
           } catch {}
 
@@ -1108,7 +1380,7 @@
 
             const idbCamera = await idbGet('camera');
             if (idbCamera) {
-              applyCameraState(idbCamera, false);
+              loadedCamera = idbCamera;
             }
           } catch {}
 
@@ -1118,6 +1390,10 @@
 
           state.settings = { ...defaultSettings, ...loadedSettings };
           state.trailVisible = state.settings.showTrails;
+
+          if (loadedCamera) {
+            applyCameraState(loadedCamera, false);
+          }
         }
 
 
@@ -1771,535 +2047,1684 @@
           return null;
         }
 
-/* Returns the projected OEM time used by the timeline slider or the live clock. */
-        function getActiveProjectedTimeMs(nowMs) {
-          if (!state.oemStartMs || !state.oemStopMs) {
-            return nowMs;
+
+
+/* Returns one XR node by kind and handedness. */
+        function getXRNodeByHandedness(kind = 'controller', handedness = 'right') {
+          const want = handedness === 'left' ? 'left' : 'right';
+
+          if (kind === 'controller') {
+            for (const controller of xrControllers) {
+              const hand = controller?.userData?.handedness || controller?.inputSource?.handedness || '';
+              if (hand === want) return controller;
+            }
           }
 
-          const spanMs = Math.max(1, state.oemStopMs - state.oemStartMs);
-
-          if (state.settings.timelineScrubActive) {
-            const ratio = Math.max(0, Math.min(1, state.settings.projectedTimelineRatio));
-            return state.oemStartMs + ratio * spanMs;
+          if (kind === 'controllerGrip') {
+            for (const grip of xrControllerGrips) {
+              const hand = grip?.userData?.handedness || grip?.inputSource?.handedness || '';
+              if (hand === want) return grip;
+            }
           }
 
-          return Math.max(state.oemStartMs, Math.min(nowMs, state.oemStopMs));
+          if (kind === 'hand') {
+            for (const handObj of xrHands) {
+              const hand = handObj?.userData?.handedness || handObj?.inputSource?.handedness || '';
+              if (hand === want) return handObj;
+            }
+          }
+
+          return null;
         }
 
-/* Syncs the projected timeline overlay with the active projected time and live-time reference marker. */
-        function syncTimelineUi(nowMs) {
-          if (!state.oemStartMs || !state.oemStopMs) {
-            if (refs.timelineLiveMarker) {
-              refs.timelineLiveMarker.style.display = 'none';
-            }
+/* Returns the controller/hand anchor used for the XR travel menu. */
+        function getXRTravelMenuAnchorObject() {
+          const anchorName = String(state.settings.xrTravelMenuAnchor || 'rightController');
+
+          if (anchorName === 'leftController') {
+            return getXRNodeByHandedness('controllerGrip', 'left') || getXRNodeByHandedness('controller', 'left');
+          }
+
+          if (anchorName === 'rightController') {
+            return getXRNodeByHandedness('controllerGrip', 'right') || getXRNodeByHandedness('controller', 'right');
+          }
+
+          if (anchorName === 'leftHand') {
+            const hand = getXRNodeByHandedness('hand', 'left');
+            return hand?.joints?.wrist || hand || null;
+          }
+
+          if (anchorName === 'rightHand') {
+            const hand = getXRNodeByHandedness('hand', 'right');
+            return hand?.joints?.wrist || hand || null;
+          }
+
+          return null;
+        }
+
+
+
+
+/* Creates a plain centered XR menu text sprite without a panel background. */
+        function createXRTextSprite(text) {
+          const canvas = document.createElement('canvas');
+          canvas.width = 1024;
+          canvas.height = 192;
+
+          const ctx = canvas.getContext('2d');
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+          ctx.fillStyle = '#eef5ff';
+          ctx.font = '700 58px Inter, system-ui, sans-serif';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.shadowColor = 'rgba(0, 0, 0, 0.55)';
+          ctx.shadowBlur = 14;
+          ctx.fillText(text, canvas.width * 0.5, canvas.height * 0.5);
+
+          const texture = new THREE.CanvasTexture(canvas);
+          texture.colorSpace = THREE.SRGBColorSpace;
+
+          const material = new THREE.SpriteMaterial({
+            map: texture,
+            transparent: true,
+            depthTest: false,
+            depthWrite: false
+          });
+
+          const sprite = new THREE.Sprite(material);
+          sprite.scale.set(0.16, 0.03, 1);
+          return sprite;
+        }
+
+
+/* Builds one realistic XR menu icon from current scene materials or the Orion model. */
+        function createXRTravelIcon(id) {
+          if (id === 'sun') {
+            return new THREE.Mesh(
+              new THREE.SphereGeometry(0.034, 28, 28),
+              sunGlow && sunGlow.material ? sunGlow.material.clone() : new THREE.MeshBasicMaterial({ color: '#ffd26d' })
+              );
+          }
+
+          if (id === 'earth') {
+            return new THREE.Mesh(
+              new THREE.SphereGeometry(0.033, 28, 28),
+              earthSurface && earthSurface.material ? earthSurface.material.clone() : new THREE.MeshStandardMaterial({ color: '#69d9ff', roughness: 1.0, metalness: 0.0 })
+              );
+          }
+
+          if (id === 'moon') {
+            return new THREE.Mesh(
+              new THREE.SphereGeometry(0.031, 24, 24),
+              moonMesh && moonMesh.material ? moonMesh.material.clone() : new THREE.MeshStandardMaterial({ color: '#d9d9d9', roughness: 1.0, metalness: 0.0 })
+              );
+          }
+
+          if ((id === 'live' || id === 'projected') && modelTemplate) {
+            const root = new THREE.Group();
+            const model = modelTemplate.clone(true);
+            model.scale.setScalar(0.0038);
+            model.rotation.set(0.24, -0.75, 0);
+
+            model.traverse((child) => {
+              if (child.isMesh) {
+                child.castShadow = false;
+                child.receiveShadow = false;
+              }
+            });
+
+            root.add(model);
+            return root;
+          }
+
+          return new THREE.Mesh(
+            new THREE.SphereGeometry(0.030, 20, 20),
+            new THREE.MeshStandardMaterial({
+              color: id === 'live' ? '#79ffc9' : '#ffffff',
+              roughness: 0.85,
+              metalness: 0.05
+            })
+            );
+        }
+
+
+
+
+
+
+
+/* Creates one radial XR travel button with centered text and realistic icon content. */
+        function createXRTravelButton(id, label) {
+          const group = new THREE.Group();
+          group.name = `xr-travel-${id}`;
+
+          const idleShell = new THREE.Mesh(
+            new THREE.SphereGeometry(0.050, 24, 24),
+            new THREE.MeshBasicMaterial({
+              color: '#ff66c4',
+              transparent: true,
+              opacity: 0.18,
+              depthTest: false,
+              depthWrite: false
+            })
+            );
+          group.add(idleShell);
+
+          const selectedShell = new THREE.Mesh(
+            new THREE.SphereGeometry(0.058, 24, 24),
+            new THREE.MeshBasicMaterial({
+              color: '#79ffc9',
+              transparent: true,
+              opacity: 0,
+              depthTest: false,
+              depthWrite: false
+            })
+            );
+          group.add(selectedShell);
+
+          const iconRoot = new THREE.Group();
+          const icon = createXRTravelIcon(id);
+          iconRoot.add(icon);
+          group.add(iconRoot);
+
+          const sprite = createXRTextSprite(label);
+          sprite.position.set(0, 0, 0.068);
+          group.add(sprite);
+
+          return {
+            id,
+            label,
+            group,
+            idleShell,
+            selectedShell,
+            iconRoot,
+            icon,
+            sprite,
+            menuPos: new THREE.Vector3()
+          };
+        }
+
+
+
+
+/* Clears mounted XR travel controls. */
+        function clearXRTravelMenu() {
+          if (!xrTravelMenuRoot) {
             return;
           }
 
-          const spanMs = Math.max(1, state.oemStopMs - state.oemStartMs);
-          const liveNowRatio = Math.max(
-            0,
-            Math.min(1, (Math.max(state.oemStartMs, Math.min(nowMs, state.oemStopMs)) - state.oemStartMs) / spanMs)
+          xrTravelMenuRoot.traverse((child) => {
+            if (child.geometry) child.geometry.dispose();
+            if (child.material) {
+              if (Array.isArray(child.material)) {
+                child.material.forEach((material) => material.dispose());
+              } else {
+                child.material.dispose();
+              }
+            }
+            if (child.material?.map) {
+              child.material.map.dispose();
+            }
+          });
+
+          scene.remove(xrTravelMenuRoot);
+          xrTravelMenuRoot = null;
+          xrTravelMenuRing = null;
+          xrTravelMenuButtons = [];
+          xrTravelMenuDot = null;
+        }
+
+/* Creates mounted XR travel controls with centered text and realistic icon meshes. */
+        function createXRTravelMenu() {
+          clearXRTravelMenu();
+
+          xrTravelMenuRoot = new THREE.Group();
+          xrTravelMenuRoot.name = 'xr-travel-root';
+          xrTravelMenuRoot.visible = false;
+
+          xrTravelMenuRing = new THREE.Group();
+          xrTravelMenuRing.name = 'xr-travel-ring';
+          xrTravelMenuRoot.add(xrTravelMenuRing);
+
+          xrTravelMenuButtons = [
+            createXRTravelButton('sun', 'Sun'),
+            createXRTravelButton('earth', 'Earth'),
+            createXRTravelButton('moon', 'Moon'),
+            createXRTravelButton('live', 'Live Orion'),
+            createXRTravelButton('projected', 'Projected Orion')
+          ];
+
+          for (const button of xrTravelMenuButtons) {
+            xrTravelMenuRing.add(button.group);
+          }
+
+          xrTravelMenuDot = new THREE.Mesh(
+            new THREE.SphereGeometry(0.014, 16, 16),
+            new THREE.MeshBasicMaterial({
+              color: 0xffffff,
+              transparent: true,
+              opacity: 0.9,
+              depthTest: false,
+              depthWrite: false
+            })
             );
+          xrTravelMenuRoot.add(xrTravelMenuDot);
 
-          const activeRatio = state.settings.timelineScrubActive
-          ? Math.max(0, Math.min(1, state.settings.projectedTimelineRatio))
-          : liveNowRatio;
+          scene.add(xrTravelMenuRoot);
+          syncXRTravelMenuLayout(true);
+        }
 
-          refs.timelineRange.value = String(Math.round(activeRatio * 1000));
-          refs.timelineStart.textContent = formatUtc(state.oemStartMs);
-          refs.timelineEnd.textContent = formatUtc(state.oemStopMs);
-          refs.timelineCurrent.textContent = `${formatUtc(state.projectedTimeMs || getActiveProjectedTimeMs(nowMs))} · ${(activeRatio * 100).toFixed(1)}%`;
-          refs.timelineNow.classList.toggle('active', !state.settings.timelineScrubActive);
 
-          const liveRatio = getLiveTimelineRatio();
-          if (refs.timelineLiveMarker && Number.isFinite(liveRatio)) {
-            refs.timelineLiveMarker.style.display = 'block';
-            refs.timelineLiveMarker.style.left = `${liveRatio * 100}%`;
-            refs.timelineLiveMarker.dataset.label = 'LIVE';
-          } else if (refs.timelineLiveMarker) {
-            refs.timelineLiveMarker.style.display = 'none';
+
+
+
+/* Lays out XR travel buttons in a rotating radial ring. */
+        function syncXRTravelMenuLayout(force = false) {
+          if (!xrTravelMenuRoot || !xrTravelMenuRing || !xrTravelMenuButtons.length) {
+            return;
+          }
+
+          const radius = state.settings.xrTravelMenuRadius;
+          const step = (Math.PI * 2) / xrTravelMenuButtons.length;
+
+          for (let i = 0; i < xrTravelMenuButtons.length; i += 1) {
+            const button = xrTravelMenuButtons[i];
+            const angle = (-Math.PI * 0.5) + i * step;
+            button.baseAngle = angle;
+            button.menuPos.set(Math.cos(angle) * radius, Math.sin(angle) * radius, 0);
+            if (force) {
+              button.group.position.copy(button.menuPos);
+              button.group.scale.setScalar(1);
+            }
+          }
+
+          state.xrMenuTargetRotation = -state.xrMenuSelectedIndex * step;
+
+          if (force) {
+            state.xrMenuCurrentRotation = state.xrMenuTargetRotation;
+            state.xrMenuOpenAlpha = state.xrMenuOpen ? 1 : 0;
+            xrTravelMenuRing.rotation.z = state.xrMenuCurrentRotation;
+          }
+
+          updateXRTravelMenuVisuals(force ? 1 : (1 / 60));
+        }
+
+
+
+
+
+
+
+
+/* Updates XR travel button highlighting and open-state animation without fake rings or icon spin. */
+        function updateXRTravelMenuVisuals(deltaSeconds = 1 / 60) {
+          if (!xrTravelMenuRoot || !xrTravelMenuButtons.length) {
+            return;
+          }
+
+          const presenting = renderer.xr.isPresenting && state.settings.xrTravelMenuEnabled;
+          xrTravelMenuRoot.visible = presenting;
+
+          if (!presenting) {
+            return;
+          }
+
+          const damping = 1 - Math.exp(-Math.max(0.001, deltaSeconds) * 14);
+          const targetOpenAlpha = state.xrMenuOpen ? 1 : 0;
+
+          state.xrMenuOpenAlpha += (targetOpenAlpha - state.xrMenuOpenAlpha) * damping;
+
+          const diff =
+          ((((state.xrMenuTargetRotation - state.xrMenuCurrentRotation) + Math.PI) % (Math.PI * 2)) + (Math.PI * 2)) % (Math.PI * 2) - Math.PI;
+
+          state.xrMenuCurrentRotation += diff * damping;
+          xrTravelMenuRing.rotation.z = state.xrMenuCurrentRotation;
+
+          xrTravelMenuRing.visible = state.xrMenuOpenAlpha > 0.002;
+          xrTravelMenuDot.visible = true;
+          xrTravelMenuDot.material.opacity = THREE.MathUtils.lerp(0.92, 0.16, state.xrMenuOpenAlpha);
+
+          for (let i = 0; i < xrTravelMenuButtons.length; i += 1) {
+            const button = xrTravelMenuButtons[i];
+            const selected = i === state.xrMenuSelectedIndex;
+            const openScale = state.xrMenuOpenAlpha;
+            const focusScale = selected ? 1.14 : 1.0;
+
+            button.group.visible = openScale > 0.002;
+            button.group.position.copy(button.menuPos).multiplyScalar(openScale);
+            button.group.scale.setScalar((0.78 + 0.22 * openScale) * focusScale);
+
+            button.idleShell.material.opacity = (selected ? 0.06 : 0.22) * openScale;
+            button.selectedShell.material.opacity = (selected ? 0.28 : 0.0) * openScale;
+
+            button.iconRoot.scale.setScalar(selected ? 1.05 : 1.0);
+            button.sprite.material.opacity = (selected ? 1.0 : 0.84) * openScale;
+            button.sprite.position.set(0, 0, THREE.MathUtils.lerp(0.02, 0.068, openScale));
           }
         }
+
+
+
+
+
+
+
+/* Anchors XR travel controls rigidly to the controller space without pose lag. */
+        function updateXRTravelMenuPose(deltaSeconds = 1 / 60) {
+          if (!xrTravelMenuRoot) {
+            return;
+          }
+
+          const presenting = renderer.xr.isPresenting && state.settings.xrTravelMenuEnabled;
+          const anchor = presenting ? getXRTravelMenuAnchorObject() : null;
+
+          xrTravelMenuRoot.visible = presenting && !!anchor;
+          if (!anchor) {
+            return;
+          }
+
+          const anchorName = String(state.settings.xrTravelMenuAnchor || 'rightController');
+          const isLeft = anchorName.startsWith('left');
+
+          anchor.updateWorldMatrix?.(true, false);
+          anchor.getWorldPosition(xrTmpVecA);
+
+          camera.updateWorldMatrix(true);
+          camera.getWorldPosition(xrTmpVecB);
+          camera.getWorldQuaternion(xrTmpQuatA);
+
+          const rightAxis = xrTmpVecC.set(1, 0, 0).applyQuaternion(xrTmpQuatA).normalize();
+          const upAxis = xrTmpVecD.set(0, 1, 0).applyQuaternion(xrTmpQuatA).normalize();
+          const forwardAxis = new THREE.Vector3(0, 0, -1).applyQuaternion(xrTmpQuatA).normalize();
+
+          const baseForwardOffset = 0.16;
+          const baseUpOffset = 0.04;
+
+          const targetPosition = xrTmpVecA.clone()
+          .addScaledVector(rightAxis, (isLeft ? 1 : -1) * Math.abs(state.settings.xrTravelMenuOffsetX))
+          .addScaledVector(upAxis, state.settings.xrTravelMenuOffsetY + baseUpOffset)
+          .addScaledVector(forwardAxis, state.settings.xrTravelMenuOffsetZ - baseForwardOffset);
+
+          const lookMatrix = new THREE.Matrix4().lookAt(targetPosition, xrTmpVecB, upAxis);
+          const targetQuaternion = new THREE.Quaternion().setFromRotationMatrix(lookMatrix);
+
+          xrTmpQuatB.setFromEuler(
+            new THREE.Euler(
+              state.settings.xrTravelMenuRotX,
+              state.settings.xrTravelMenuRotY,
+              state.settings.xrTravelMenuRotZ,
+              'XYZ'
+              )
+            );
+          targetQuaternion.multiply(xrTmpQuatB);
+
+          xrTravelMenuRoot.position.copy(targetPosition);
+          xrTravelMenuRoot.quaternion.copy(targetQuaternion);
+          xrTravelMenuRoot.scale.setScalar(state.settings.xrTravelMenuScale);
+
+          updateXRTravelMenuVisuals(deltaSeconds);
+        }
+
+
+
+
+
+
+
+/* Returns the live controller gamepad for one handedness. */
+        function getXRControllerGamepad(handedness = 'right') {
+          const controller = getXRNodeByHandedness('controller', handedness);
+          return controller?.userData?.gamepad || controller?.inputSource?.gamepad || null;
+        }
+
+
+
+
+/* Returns one XR hand joint world position when hand tracking is active. */
+        function getXRHandJointWorldPosition(handedness = 'right', jointName = 'index-finger-tip') {
+          const hand = getXRNodeByHandedness('hand', handedness);
+
+          if (!hand || !hand.joints || !hand.joints[jointName]) {
+            return null;
+          }
+
+          const joint = hand.joints[jointName];
+          joint.updateWorldMatrix?.(true, false);
+          return joint.getWorldPosition(new THREE.Vector3());
+        }
+
+/* Measures pinch distance between thumb tip and index tip for one hand. */
+        function getXRHandPinchDistance(handedness = 'right') {
+          const thumb = getXRHandJointWorldPosition(handedness, 'thumb-tip');
+          const index = getXRHandJointWorldPosition(handedness, 'index-finger-tip');
+
+          if (!thumb || !index) {
+            return null;
+          }
+
+          return thumb.distanceTo(index);
+        }
+
+/* Returns the hovered XR radial-menu item using fingertip collision. */
+        function getXRHandMenuHoverIndex() {
+          if (!xrTravelMenuButtons.length || !state.xrMenuOpen) {
+            return -1;
+          }
+
+          const fingerTip =
+          getXRHandJointWorldPosition('right', 'index-finger-tip') ||
+          getXRHandJointWorldPosition('left', 'index-finger-tip');
+
+          if (!fingerTip) {
+            return -1;
+          }
+
+          let bestIndex = -1;
+          let bestDistance = state.settings.xrHandMenuHoverRadius;
+
+          for (let index = 0; index < xrTravelMenuButtons.length; index += 1) {
+            const button = xrTravelMenuButtons[index];
+            const worldPosition = button.group.getWorldPosition(new THREE.Vector3());
+            const distanceToFinger = worldPosition.distanceTo(fingerTip);
+
+            if (distanceToFinger < bestDistance) {
+              bestDistance = distanceToFinger;
+              bestIndex = index;
+            }
+          }
+
+          return bestIndex;
+        }
+
+
+
+/* Detects one rising-edge XR button press. */
+        function getXRButtonJustPressed(controller, key, indices) {
+          const gamepad = controller?.userData?.gamepad || controller?.inputSource?.gamepad || null;
+          if (!gamepad) {
+            return false;
+          }
+
+          const pressed = indices.some((index) => !!gamepad.buttons?.[index]?.pressed);
+          const wasPressed = !!controller.userData[key];
+          controller.userData[key] = pressed;
+          return pressed && !wasPressed;
+        }
+
+
+
+
+
+/* Returns one travel target position for XR menu travel. */
+        function getXRTravelTargetById(id) {
+          if (id === 'sun') {
+            return sunGlow.position.clone();
+          }
+
+          if (id === 'earth' && earthGroup) {
+            return earthGroup.position.clone();
+          }
+
+          if (id === 'moon' && moonMesh) {
+            return moonMesh.position.clone();
+          }
+
+          if (id === 'live') {
+            if (state.liveValid && state.liveState) {
+              return toSceneVector(state.liveState.p);
+            }
+            if (liveOrionRoot && liveOrionRoot.visible) {
+              return liveOrionRoot.position.clone();
+            }
+            if (liveMarker && liveMarker.visible) {
+              return liveMarker.position.clone();
+            }
+          }
+
+          if (id === 'projected') {
+            if (state.projectedState) {
+              return toSceneVector(state.projectedState.p);
+            }
+            if (projectedOrionRoot && projectedOrionRoot.visible) {
+              return projectedOrionRoot.position.clone();
+            }
+            if (projectedMarker && projectedMarker.visible) {
+              return projectedMarker.position.clone();
+            }
+          }
+
+          return null;
+        }
+
+
+
+
+/* Returns the scene object used to estimate safe landing clearance for one XR travel target. */
+        function getXRTravelTargetObjectById(id) {
+          if (id === 'sun') {
+            return sunGlow || null;
+          }
+
+          if (id === 'earth') {
+            return earthGroup || earthSurface || null;
+          }
+
+          if (id === 'moon') {
+            return moonMesh || null;
+          }
+
+          if (id === 'live') {
+            return liveOrionRoot || liveMarker || null;
+          }
+
+          if (id === 'projected') {
+            return projectedOrionRoot || projectedMarker || null;
+          }
+
+          return null;
+        }
+
+/* Returns the live XR height offset used to align arrivals to controller or eye height. */
+        function getXRTravelReferenceHeightOffset() {
+          if (state.settings.xrTravelArrivalReference === 'controller') {
+            const controllerHeights = [];
+
+            for (const handedness of ['left', 'right']) {
+              const controller =
+              getXRNodeByHandedness('controller', handedness) ||
+              getXRNodeByHandedness('controllerGrip', handedness);
+
+              if (!controller) {
+                continue;
+              }
+
+              controller.updateWorldMatrix?.(true, false);
+              controller.getWorldPosition(xrTmpVecA);
+              controllerHeights.push(xrTmpVecA.y - xrRig.position.y);
+            }
+
+            if (controllerHeights.length) {
+              return controllerHeights.reduce((sum, value) => sum + value, 0) / controllerHeights.length;
+            }
+          }
+
+          camera.updateWorldMatrix(true);
+          camera.getWorldPosition(xrTmpVecA);
+          return xrTmpVecA.y - xrRig.position.y;
+        }
+
+/* Builds a safe XR arrival pose so destinations stay in front of the user instead of underfoot. */
+        function getXRTravelArrivalPose(id, targetPosition) {
+          const targetObject = getXRTravelTargetObjectById(id);
+          let targetRadius = 0;
+
+          if (targetObject) {
+            targetObject.updateWorldMatrix?.(true, true);
+            const bounds = new THREE.Box3().setFromObject(targetObject);
+
+            if (!bounds.isEmpty()) {
+              const sphere = bounds.getBoundingSphere(new THREE.Sphere());
+              targetRadius = sphere.radius;
+            }
+          }
+
+          camera.updateWorldMatrix(true);
+          camera.getWorldDirection(xrTmpVecA);
+          xrTmpVecA.y = 0;
+
+          if (xrTmpVecA.lengthSq() < 0.000001) {
+            xrTmpVecA.set(0, 0, -1);
+          }
+
+          xrTmpVecA.normalize();
+
+          const approachDirection = xrTmpVecB.copy(xrTmpVecA).multiplyScalar(-1);
+          const arrivalDistance = targetRadius + state.settings.xrTravelArrivalDistance;
+          const referenceHeightOffset = getXRTravelReferenceHeightOffset();
+
+          const arrivalPosition = targetPosition.clone()
+          .addScaledVector(approachDirection, arrivalDistance);
+
+          arrivalPosition.y = targetPosition.y - referenceHeightOffset + state.settings.xrTravelArrivalHeight;
+
+          return {
+            targetPosition: targetPosition.clone(),
+            arrivalPosition
+          };
+        }
+
+
+
+/* Builds one XR travel path for straight or trajectory transitions. */
+        function buildXRTravelPath(from, to, id) {
+          if (state.settings.xrTravelTransitionMode !== 'trajectory') {
+            const mid = from.clone().lerp(to, 0.5);
+            mid.y += from.distanceTo(to) * state.settings.xrTravelCurveHeight;
+            return [from.clone(), mid, to.clone()];
+          }
+
+          if ((id === 'projected' || id === 'live') && state.oemSamples.length) {
+            const endIndex = Math.max(0, Math.min(state.projectedIndex, state.oemSamples.length - 1));
+            const startIndex = Math.max(0, endIndex - state.settings.xrTravelPathBacktrack);
+            const span = Math.max(1, endIndex - startIndex);
+            const step = Math.max(1, Math.floor(span / Math.max(2, state.settings.xrTravelPathSamples - 2)));
+            const points = [from.clone()];
+
+            for (let i = startIndex; i <= endIndex; i += step) {
+              points.push(toSceneVector(state.oemSamples[i].p));
+            }
+
+            if (points[points.length - 1].distanceTo(to) > 0.001) {
+              points.push(to.clone());
+            }
+
+            return points;
+          }
+
+          if (id === 'moon' && state.oemSamples.length) {
+            const endIndex = Math.max(0, Math.min(state.projectedIndex, state.oemSamples.length - 1));
+            const startIndex = Math.max(0, endIndex - state.settings.xrTravelPathBacktrack);
+            const span = Math.max(1, endIndex - startIndex);
+            const step = Math.max(1, Math.floor(span / Math.max(2, state.settings.xrTravelPathSamples - 2)));
+            const points = [from.clone()];
+
+            for (let i = startIndex; i <= endIndex; i += step) {
+              points.push(toSceneVector(computeMoonPositionKm(state.oemSamples[i].epochMs)));
+            }
+
+            if (points[points.length - 1].distanceTo(to) > 0.001) {
+              points.push(to.clone());
+            }
+
+            return points;
+          }
+
+          const mid = from.clone().lerp(to, 0.5);
+          mid.y += from.distanceTo(to) * state.settings.xrTravelCurveHeight;
+          return [from.clone(), mid, to.clone()];
+        }
+
+
+
+
+/* Starts one XR travel tween to a safe arrival pose instead of landing inside the target. */
+        function startXRTravelToTarget(id) {
+          const targetPosition = getXRTravelTargetById(id);
+          if (!targetPosition) {
+            return;
+          }
+
+          const arrivalPose = getXRTravelArrivalPose(id, targetPosition);
+          const from = xrRig.position.clone();
+          const points = buildXRTravelPath(from, arrivalPose.arrivalPosition, id);
+          const curve = new THREE.CatmullRomCurve3(points, false, 'centripetal');
+
+          state.xrTravelTween = {
+            id,
+            curve,
+            startMs: performance.now(),
+            durationMs: state.settings.xrTravelTransitionDurationMs,
+            targetPosition: arrivalPose.targetPosition,
+            arrivalPosition: arrivalPose.arrivalPosition
+          };
+
+          state.xrMenuNavAxisActive = false;
+          state.xrMenuNavAxisSign = 0;
+          updateXRTravelMenuVisuals();
+        }
+
+
+
+
+
+/* Advances the XR travel tween each frame. */
+        function updateXRTravel(nowMs) {
+          if (!state.xrTravelTween) {
+            return;
+          }
+
+          const elapsed = nowMs - state.xrTravelTween.startMs;
+          const t = Math.max(0, Math.min(1, elapsed / state.xrTravelTween.durationMs));
+          const eased = 1 - Math.pow(1 - t, 3);
+
+          xrRig.position.copy(state.xrTravelTween.curve.getPointAt(eased));
+
+          if (t >= 1) {
+            state.xrTravelTween = null;
+          }
+        }
+
+
+
+
+
+
+/* Applies XR flight from the left thumbstick and right-stick yaw when the radial menu is closed. */
+        function updateXRMovement(deltaSeconds) {
+          if (!renderer.xr.isPresenting || !state.settings.xrMoveEnabled) {
+            state.xrMoveVelocityX = 0;
+            state.xrMoveVelocityZ = 0;
+            return;
+          }
+
+          const deadzone = state.settings.xrMoveDeadzone;
+          const leftGamepad = getXRControllerGamepad('left');
+          const rightGamepad = getXRControllerGamepad('right');
+
+          const leftRawX = leftGamepad
+          ? (Number.isFinite(leftGamepad.axes?.[2]) ? leftGamepad.axes[2] : (Number.isFinite(leftGamepad.axes?.[0]) ? leftGamepad.axes[0] : 0))
+          : 0;
+
+          const leftRawY = leftGamepad
+          ? (Number.isFinite(leftGamepad.axes?.[3]) ? leftGamepad.axes[3] : (Number.isFinite(leftGamepad.axes?.[1]) ? leftGamepad.axes[1] : 0))
+          : 0;
+
+          const moveX = Math.abs(leftRawX) > deadzone ? leftRawX : 0;
+          const moveYBase = Math.abs(leftRawY) > deadzone ? leftRawY : 0;
+          const moveY = state.settings.xrMoveForwardInverted ? -moveYBase : moveYBase;
+
+          const targetVX = moveX * state.settings.xrMoveSpeed;
+          const targetVZ = moveY * state.settings.xrMoveSpeed;
+          const accel = state.settings.xrMoveAcceleration * deltaSeconds;
+          const damping = Math.max(0, 1 - state.settings.xrMoveDamping * deltaSeconds);
+
+          state.xrMoveVelocityX += (targetVX - state.xrMoveVelocityX) * accel;
+          state.xrMoveVelocityZ += (targetVZ - state.xrMoveVelocityZ) * accel;
+          state.xrMoveVelocityX *= damping;
+          state.xrMoveVelocityZ *= damping;
+
+          if (!state.xrMenuOpen && state.settings.xrTurnEnabled && rightGamepad) {
+            const rightRawX = Number.isFinite(rightGamepad.axes?.[2])
+            ? rightGamepad.axes[2]
+            : (Number.isFinite(rightGamepad.axes?.[0]) ? rightGamepad.axes[0] : 0);
+
+            const turnX = Math.abs(rightRawX) > deadzone ? rightRawX : 0;
+
+            if (turnX !== 0) {
+              const turnSign = state.settings.xrTurnInverted ? 1 : -1;
+              const yawDelta = turnX * turnSign * state.settings.xrTurnSpeed * deltaSeconds;
+
+              camera.updateWorldMatrix(true);
+              camera.getWorldPosition(xrTmpVecD);
+
+              xrRig.position.sub(xrTmpVecD);
+              xrRig.position.applyAxisAngle(xrUp, yawDelta);
+              xrRig.position.add(xrTmpVecD);
+              xrRig.rotateY(yawDelta);
+            }
+          }
+
+          camera.getWorldDirection(xrTmpVecA);
+          xrTmpVecA.y = 0;
+          if (xrTmpVecA.lengthSq() < 0.000001) {
+            xrTmpVecA.set(0, 0, -1);
+          }
+          xrTmpVecA.normalize();
+
+          xrTmpVecB.crossVectors(xrTmpVecA, xrUp).normalize();
+
+          let verticalMove = 0;
+          const leftController = getXRNodeByHandedness('controller', 'left') || getXRNodeByHandedness('controllerGrip', 'left');
+
+          if (leftController) {
+            leftController.updateWorldMatrix?.(true, false);
+            leftController.getWorldQuaternion(xrTmpQuatA);
+
+            const leftForward = xrTmpVecC.set(0, 0, -1).applyQuaternion(xrTmpQuatA).normalize();
+            const leftFlat = xrTmpVecD.set(leftForward.x, 0, leftForward.z);
+
+            if (leftFlat.lengthSq() > 0.000001) {
+              leftFlat.normalize();
+              const pitchAmount = THREE.MathUtils.clamp(leftForward.y, -1, 1);
+              verticalMove = -state.xrMoveVelocityZ * pitchAmount;
+              xrTmpVecA.copy(leftFlat);
+            }
+          }
+
+          xrRig.position.addScaledVector(xrTmpVecB, state.xrMoveVelocityX * deltaSeconds);
+          xrRig.position.addScaledVector(xrTmpVecA, -state.xrMoveVelocityZ * deltaSeconds);
+          xrRig.position.y += verticalMove * deltaSeconds;
+        }
+
+
+
+
+
+/* Polls the mounted XR radial menu for controller input and hand-only pinch selection. */
+        function updateXRTravelMenuInput(nowMs) {
+          if (!renderer.xr.isPresenting || !state.settings.xrTravelMenuEnabled || !xrTravelMenuButtons.length) {
+            return;
+          }
+
+          const anchorName = String(state.settings.xrTravelMenuAnchor || 'rightController');
+          const handedness = anchorName.startsWith('left') ? 'left' : 'right';
+          const controller = getXRNodeByHandedness('controller', handedness);
+
+          if (controller) {
+            if (getXRButtonJustPressed(controller, 'xrMenuTogglePressed', [5])) {
+              state.xrMenuOpen = !state.xrMenuOpen;
+              state.xrMenuNavAxisActive = false;
+              state.xrMenuNavAxisSign = 0;
+              updateXRTravelMenuVisuals();
+            }
+
+            if (!state.xrMenuOpen) {
+              state.xrMenuNavAxisActive = false;
+              state.xrMenuNavAxisSign = 0;
+            } else {
+              const axisX = Number.isFinite(controller.userData?.gamepad?.axes?.[2])
+              ? controller.userData.gamepad.axes[2]
+              : (Number.isFinite(controller.userData?.gamepad?.axes?.[0]) ? controller.userData.gamepad.axes[0] : 0);
+
+              const absAxis = Math.abs(axisX);
+              const sign = axisX >= 0 ? 1 : -1;
+              const engageThreshold = 0.72;
+              const releaseThreshold = 0.28;
+
+              if (!state.xrMenuNavAxisActive && absAxis >= engageThreshold) {
+                state.xrMenuSelectedIndex =
+                (state.xrMenuSelectedIndex + (sign > 0 ? 1 : -1) + xrTravelMenuButtons.length) % xrTravelMenuButtons.length;
+                state.xrMenuNavAxisActive = true;
+                state.xrMenuNavAxisSign = sign;
+                state.xrMenuNavLastMoveAt = nowMs;
+                state.xrMenuNavRepeatLastAt = nowMs;
+                syncXRTravelMenuLayout();
+              } else if (state.xrMenuNavAxisActive && absAxis <= releaseThreshold) {
+                state.xrMenuNavAxisActive = false;
+                state.xrMenuNavAxisSign = 0;
+              }
+
+              if (getXRButtonJustPressed(controller, 'xrMenuConfirmPressed', [4])) {
+                startXRTravelToTarget(xrTravelMenuButtons[state.xrMenuSelectedIndex].id);
+              }
+            }
+          }
+
+          if (!state.settings.xrHandMenuEnabled) {
+            state.xrHandMenuLeftWasPinching = false;
+            state.xrHandMenuRightWasPinching = false;
+            return;
+          }
+
+          const leftPinchDistance = getXRHandPinchDistance('left');
+          const rightPinchDistance = getXRHandPinchDistance('right');
+
+          const leftIsPinching =
+          Number.isFinite(leftPinchDistance) &&
+          leftPinchDistance <= state.settings.xrHandMenuTogglePinchDistance;
+
+          const rightIsPinching =
+          Number.isFinite(rightPinchDistance) &&
+          rightPinchDistance <= state.settings.xrHandMenuSelectPinchDistance;
+
+          if (
+            leftIsPinching &&
+            !state.xrHandMenuLeftWasPinching &&
+            nowMs - state.xrHandMenuLastToggleAt >= state.settings.xrHandMenuToggleCooldownMs
+            ) {
+            state.xrMenuOpen = !state.xrMenuOpen;
+          state.xrHandMenuLastToggleAt = nowMs;
+          state.xrMenuNavAxisActive = false;
+          state.xrMenuNavAxisSign = 0;
+          updateXRTravelMenuVisuals();
+        }
+
+        if (state.xrMenuOpen) {
+          const hoverIndex = getXRHandMenuHoverIndex();
+
+          if (hoverIndex !== -1 && hoverIndex !== state.xrMenuSelectedIndex) {
+            state.xrMenuSelectedIndex = hoverIndex;
+            syncXRTravelMenuLayout();
+          }
+
+          if (
+            hoverIndex !== -1 &&
+            rightIsPinching &&
+            !state.xrHandMenuRightWasPinching &&
+            nowMs - state.xrHandMenuLastSelectAt >= state.settings.xrHandMenuSelectCooldownMs
+            ) {
+            state.xrHandMenuLastSelectAt = nowMs;
+          startXRTravelToTarget(xrTravelMenuButtons[state.xrMenuSelectedIndex].id);
+        }
+      }
+
+      state.xrHandMenuLeftWasPinching = leftIsPinching;
+      state.xrHandMenuRightWasPinching = rightIsPinching;
+    }
+
+
+
+
+
+
+
+
+
+
+/* Shows or hides WebXR controller models, hands, and mounted controls. */
+    function syncXRPresentationState() {
+      const presenting = renderer.xr.isPresenting;
+
+      for (const controller of xrControllers) {
+        controller.visible = presenting;
+      }
+
+      for (const grip of xrControllerGrips) {
+        grip.visible = presenting && state.settings.xrShowControllers;
+      }
+
+      for (const hand of xrHands) {
+        hand.visible = presenting && state.settings.xrShowHands;
+      }
+
+      if (xrTravelMenuRoot) {
+        xrTravelMenuRoot.visible = presenting && state.settings.xrTravelMenuEnabled;
+      }
+    }
+
+/* Restores desktop camera state after one XR session ends. */
+    function restoreDesktopPoseAfterXR() {
+      if (!state.xrSavedDesktopPose) {
+        return;
+      }
+
+      xrRig.position.copy(state.xrSavedDesktopPose.rigPosition);
+      xrRig.quaternion.copy(state.xrSavedDesktopPose.rigQuaternion);
+      camera.position.copy(state.xrSavedDesktopPose.cameraPosition);
+      camera.quaternion.copy(state.xrSavedDesktopPose.cameraQuaternion);
+      controls.target.copy(state.xrSavedDesktopPose.controlsTarget);
+      controls.enabled = true;
+      controls.update();
+      scheduleCameraSave();
+    }
+
+/* Sets the XR session start pose from the current desktop camera view. */
+    function captureDesktopPoseForXR() {
+      state.xrSavedDesktopPose = {
+        rigPosition: xrRig.position.clone(),
+        rigQuaternion: xrRig.quaternion.clone(),
+        cameraPosition: camera.position.clone(),
+        cameraQuaternion: camera.quaternion.clone(),
+        controlsTarget: controls.target.clone()
+      };
+
+      camera.updateMatrixWorld(true);
+      camera.getWorldPosition(xrTmpVecA);
+      camera.getWorldQuaternion(xrTmpQuatA);
+
+      xrRig.position.copy(xrTmpVecA);
+      xrRig.quaternion.copy(xrTmpQuatA);
+      camera.position.set(0, 0, 0);
+      camera.quaternion.identity();
+      controls.enabled = false;
+    }
+
+
+
+
+
+
+/* Creates controllers, hands, mounted XR travel controls, and the VR button. */
+    function setupXR() {
+      if (!navigator.xr) {
+        state.xrSupported = false;
+        refs.statusText.textContent = 'webxr not available';
+        return;
+      }
+
+      xrControllerFactory = new XRControllerModelFactory();
+      xrHandFactory = new XRHandModelFactory();
+
+      for (let i = 0; i < 2; i += 1) {
+        const controller = renderer.xr.getController(i);
+        controller.userData.index = i;
+        controller.userData.handedness = null;
+        controller.userData.gamepad = null;
+
+        controller.addEventListener('connected', (event) => {
+          controller.userData.handedness = event?.data?.handedness || controller.userData.handedness || null;
+          controller.userData.gamepad = event?.data?.gamepad || null;
+        });
+
+        controller.addEventListener('disconnected', () => {
+          controller.userData.handedness = null;
+          controller.userData.gamepad = null;
+        });
+
+        xrRig.add(controller);
+        xrControllers.push(controller);
+
+        const grip = renderer.xr.getControllerGrip(i);
+        grip.userData.handedness = null;
+
+        grip.addEventListener('connected', (event) => {
+          grip.userData.handedness = event?.data?.handedness || grip.userData.handedness || null;
+        });
+
+        grip.addEventListener('disconnected', () => {
+          grip.userData.handedness = null;
+        });
+
+        grip.add(xrControllerFactory.createControllerModel(grip));
+        xrRig.add(grip);
+        xrControllerGrips.push(grip);
+
+        const hand = renderer.xr.getHand(i);
+        hand.userData.handedness = null;
+
+        hand.addEventListener('connected', (event) => {
+          hand.userData.handedness = event?.data?.handedness || hand.userData.handedness || null;
+        });
+
+        hand.addEventListener('disconnected', () => {
+          hand.userData.handedness = null;
+        });
+
+        try {
+          hand.add(xrHandFactory.createHandModel(hand, 'mesh'));
+        } catch (error) {
+          console.warn('Could not create XR hand model', error);
+        }
+
+        xrRig.add(hand);
+        xrHands.push(hand);
+      }
+
+      createXRTravelMenu();
+
+      xrButtonEl = VRButton.createButton(renderer, {
+        requiredFeatures: ['local-floor'],
+        optionalFeatures: ['hand-tracking']
+      });
+      xrButtonEl.style.right = '16px';
+      xrButtonEl.style.left = 'auto';
+      xrButtonEl.style.bottom = '16px';
+      document.body.appendChild(xrButtonEl);
+
+      state.xrSupported = true;
+
+      renderer.xr.addEventListener('sessionstart', () => {
+        state.xrSessionActive = true;
+        state.xrMenuOpen = !!state.settings.xrTravelMenuStartOpen;
+        state.xrMenuSelectedIndex = Math.max(0, Math.min(state.xrMenuSelectedIndex, xrTravelMenuButtons.length - 1));
+        state.xrTravelTween = null;
+        state.xrMoveVelocityX = 0;
+        state.xrMoveVelocityZ = 0;
+        captureDesktopPoseForXR();
+        syncXRTravelMenuLayout(true);
+        syncXRPresentationState();
+      });
+
+      renderer.xr.addEventListener('sessionend', () => {
+        state.xrSessionActive = false;
+        state.xrMenuOpen = false;
+        state.xrTravelTween = null;
+        restoreDesktopPoseAfterXR();
+        syncXRPresentationState();
+      });
+
+      syncXRPresentationState();
+    }
+
+
+
+
+
+
+/* Returns the projected OEM time used by the timeline slider or the live clock. */
+    function getActiveProjectedTimeMs(nowMs) {
+      if (!state.oemStartMs || !state.oemStopMs) {
+        return nowMs;
+      }
+
+      const spanMs = Math.max(1, state.oemStopMs - state.oemStartMs);
+
+      if (state.settings.timelineScrubActive) {
+        const ratio = Math.max(0, Math.min(1, state.settings.projectedTimelineRatio));
+        return state.oemStartMs + ratio * spanMs;
+      }
+
+      return Math.max(state.oemStartMs, Math.min(nowMs, state.oemStopMs));
+    }
+
+/* Syncs the projected timeline overlay with the active projected time and live-time reference marker. */
+    function syncTimelineUi(nowMs) {
+      if (!state.oemStartMs || !state.oemStopMs) {
+        if (refs.timelineLiveMarker) {
+          refs.timelineLiveMarker.style.display = 'none';
+        }
+        return;
+      }
+
+      const spanMs = Math.max(1, state.oemStopMs - state.oemStartMs);
+      const liveNowRatio = Math.max(
+        0,
+        Math.min(1, (Math.max(state.oemStartMs, Math.min(nowMs, state.oemStopMs)) - state.oemStartMs) / spanMs)
+        );
+
+      const activeRatio = state.settings.timelineScrubActive
+      ? Math.max(0, Math.min(1, state.settings.projectedTimelineRatio))
+      : liveNowRatio;
+
+      refs.timelineRange.value = String(Math.round(activeRatio * 1000));
+      refs.timelineStart.textContent = formatUtc(state.oemStartMs);
+      refs.timelineEnd.textContent = formatUtc(state.oemStopMs);
+      refs.timelineCurrent.textContent = `${formatUtc(state.projectedTimeMs || getActiveProjectedTimeMs(nowMs))} · ${(activeRatio * 100).toFixed(1)}%`;
+      refs.timelineNow.classList.toggle('active', !state.settings.timelineScrubActive);
+
+      const liveRatio = getLiveTimelineRatio();
+      if (refs.timelineLiveMarker && Number.isFinite(liveRatio)) {
+        refs.timelineLiveMarker.style.display = 'block';
+        refs.timelineLiveMarker.style.left = `${liveRatio * 100}%`;
+        refs.timelineLiveMarker.dataset.label = 'LIVE';
+      } else if (refs.timelineLiveMarker) {
+        refs.timelineLiveMarker.style.display = 'none';
+      }
+    }
 
 
 
 
 
 /* Returns the live timeline ratio within the OEM time window. */
-        function getLiveTimelineRatio() {
-          if (!state.liveValid || !state.liveState || !Number.isFinite(state.liveState.timeMs) || !state.oemStartMs || !state.oemStopMs) {
-            return null;
-          }
+    function getLiveTimelineRatio() {
+      if (!state.liveValid || !state.liveState || !Number.isFinite(state.liveState.timeMs) || !state.oemStartMs || !state.oemStopMs) {
+        return null;
+      }
 
-          const spanMs = Math.max(1, state.oemStopMs - state.oemStartMs);
-          const clampedMs = Math.max(state.oemStartMs, Math.min(state.liveState.timeMs, state.oemStopMs));
-          return Math.max(0, Math.min(1, (clampedMs - state.oemStartMs) / spanMs));
-        }
+      const spanMs = Math.max(1, state.oemStopMs - state.oemStartMs);
+      const clampedMs = Math.max(state.oemStartMs, Math.min(state.liveState.timeMs, state.oemStopMs));
+      return Math.max(0, Math.min(1, (clampedMs - state.oemStartMs) / spanMs));
+    }
 
 /* Returns live reference values for the three projected charts. */
-        function getLiveChartReferences() {
-          if (!state.liveValid || !state.liveState) {
-            return null;
-          }
+    function getLiveChartReferences() {
+      if (!state.liveValid || !state.liveState) {
+        return null;
+      }
 
-          const liveMoonKm = computeMoonPositionKm(state.liveState.timeMs || Date.now());
+      const liveMoonKm = computeMoonPositionKm(state.liveState.timeMs || Date.now());
 
-          return {
-            ratio: getLiveTimelineRatio(),
-            distance: magnitude(state.liveState.p),
-            velocity: state.liveState.v ? magnitude(state.liveState.v) * 3600 : null,
-            moonDistance: distance(state.liveState.p, liveMoonKm)
-          };
-        }
+      return {
+        ratio: getLiveTimelineRatio(),
+        distance: magnitude(state.liveState.p),
+        velocity: state.liveState.v ? magnitude(state.liveState.v) * 3600 : null,
+        moonDistance: distance(state.liveState.p, liveMoonKm)
+      };
+    }
 
 
 
 /* Applies GUI-driven local transforms to both Orion models. */
-        function applyOrionLocalTransforms() {
-          if (projectedOrionModel) {
-            projectedOrionModel.position.set(
-              state.settings.projectedOrionOffsetX,
-              state.settings.projectedOrionOffsetY,
-              state.settings.projectedOrionOffsetZ
-              );
-            projectedOrionModel.rotation.set(
-              THREE.MathUtils.degToRad(state.settings.projectedOrionRotationX),
-              THREE.MathUtils.degToRad(state.settings.projectedOrionRotationY),
-              THREE.MathUtils.degToRad(state.settings.projectedOrionRotationZ)
-              );
-            projectedOrionModel.scale.setScalar(0.012 * state.settings.projectedOrionScale);
-          }
+    function applyOrionLocalTransforms() {
+      if (projectedOrionModel) {
+        projectedOrionModel.position.set(
+          state.settings.projectedOrionOffsetX,
+          state.settings.projectedOrionOffsetY,
+          state.settings.projectedOrionOffsetZ
+          );
+        projectedOrionModel.rotation.set(
+          THREE.MathUtils.degToRad(state.settings.projectedOrionRotationX),
+          THREE.MathUtils.degToRad(state.settings.projectedOrionRotationY),
+          THREE.MathUtils.degToRad(state.settings.projectedOrionRotationZ)
+          );
+        projectedOrionModel.scale.setScalar(0.012 * state.settings.projectedOrionScale);
+      }
 
-          if (liveOrionModel) {
-            liveOrionModel.position.set(
-              state.settings.liveOrionOffsetX,
-              state.settings.liveOrionOffsetY,
-              state.settings.liveOrionOffsetZ
-              );
-            liveOrionModel.rotation.set(
-              THREE.MathUtils.degToRad(state.settings.liveOrionRotationX),
-              THREE.MathUtils.degToRad(state.settings.liveOrionRotationY),
-              THREE.MathUtils.degToRad(state.settings.liveOrionRotationZ)
-              );
-            liveOrionModel.scale.setScalar(0.012 * state.settings.liveOrionScale);
-          }
-        }
+      if (liveOrionModel) {
+        liveOrionModel.position.set(
+          state.settings.liveOrionOffsetX,
+          state.settings.liveOrionOffsetY,
+          state.settings.liveOrionOffsetZ
+          );
+        liveOrionModel.rotation.set(
+          THREE.MathUtils.degToRad(state.settings.liveOrionRotationX),
+          THREE.MathUtils.degToRad(state.settings.liveOrionRotationY),
+          THREE.MathUtils.degToRad(state.settings.liveOrionRotationZ)
+          );
+        liveOrionModel.scale.setScalar(0.012 * state.settings.liveOrionScale);
+      }
+    }
 
 /* Syncs transform-control edits back into persisted Orion settings. */
-        function syncTransformSettingsFromAttachedObject() {
-          if (!state.transformControls || !state.transformControls.object) {
-            return;
-          }
+    function syncTransformSettingsFromAttachedObject() {
+      if (!state.transformControls || !state.transformControls.object) {
+        return;
+      }
 
-          const object = state.transformControls.object;
+      const object = state.transformControls.object;
 
-          if (object === projectedOrionModel) {
-            state.settings.projectedOrionOffsetX = object.position.x;
-            state.settings.projectedOrionOffsetY = object.position.y;
-            state.settings.projectedOrionOffsetZ = object.position.z;
-            state.settings.projectedOrionRotationX = THREE.MathUtils.radToDeg(object.rotation.x);
-            state.settings.projectedOrionRotationY = THREE.MathUtils.radToDeg(object.rotation.y);
-            state.settings.projectedOrionRotationZ = THREE.MathUtils.radToDeg(object.rotation.z);
-            state.settings.projectedOrionScale = object.scale.x / 0.012;
-          }
+      if (object === projectedOrionModel) {
+        state.settings.projectedOrionOffsetX = object.position.x;
+        state.settings.projectedOrionOffsetY = object.position.y;
+        state.settings.projectedOrionOffsetZ = object.position.z;
+        state.settings.projectedOrionRotationX = THREE.MathUtils.radToDeg(object.rotation.x);
+        state.settings.projectedOrionRotationY = THREE.MathUtils.radToDeg(object.rotation.y);
+        state.settings.projectedOrionRotationZ = THREE.MathUtils.radToDeg(object.rotation.z);
+        state.settings.projectedOrionScale = object.scale.x / 0.012;
+      }
 
-          if (object === liveOrionModel) {
-            state.settings.liveOrionOffsetX = object.position.x;
-            state.settings.liveOrionOffsetY = object.position.y;
-            state.settings.liveOrionOffsetZ = object.position.z;
-            state.settings.liveOrionRotationX = THREE.MathUtils.radToDeg(object.rotation.x);
-            state.settings.liveOrionRotationY = THREE.MathUtils.radToDeg(object.rotation.y);
-            state.settings.liveOrionRotationZ = THREE.MathUtils.radToDeg(object.rotation.z);
-            state.settings.liveOrionScale = object.scale.x / 0.012;
-          }
+      if (object === liveOrionModel) {
+        state.settings.liveOrionOffsetX = object.position.x;
+        state.settings.liveOrionOffsetY = object.position.y;
+        state.settings.liveOrionOffsetZ = object.position.z;
+        state.settings.liveOrionRotationX = THREE.MathUtils.radToDeg(object.rotation.x);
+        state.settings.liveOrionRotationY = THREE.MathUtils.radToDeg(object.rotation.y);
+        state.settings.liveOrionRotationZ = THREE.MathUtils.radToDeg(object.rotation.z);
+        state.settings.liveOrionScale = object.scale.x / 0.012;
+      }
 
-          syncSettingsToGui();
-          clearTimeout(state.transformSaveTimer);
-          state.transformSaveTimer = setTimeout(() => {
-            persistSettings();
-          }, 180);
-        }
+      syncSettingsToGui();
+      clearTimeout(state.transformSaveTimer);
+      state.transformSaveTimer = setTimeout(() => {
+        persistSettings();
+      }, 180);
+    }
 
 /* Attaches transform controls to the selected Orion model and applies the selected mode. */
-        function updateTransformControlsAttachment() {
-          if (!state.transformControls) {
-            return;
-          }
+    function updateTransformControlsAttachment() {
+      if (!state.transformControls) {
+        return;
+      }
 
-          state.transformControls.setMode(state.settings.transformMode);
+      state.transformControls.setMode(state.settings.transformMode);
 
-          let targetObject = null;
-          if (state.settings.transformTarget === 'projected' && projectedOrionModel) {
-            targetObject = projectedOrionModel;
-          }
+      let targetObject = null;
+      if (state.settings.transformTarget === 'projected' && projectedOrionModel) {
+        targetObject = projectedOrionModel;
+      }
 
-          if (state.settings.transformTarget === 'live' && liveOrionModel) {
-            targetObject = liveOrionModel;
-          }
+      if (state.settings.transformTarget === 'live' && liveOrionModel) {
+        targetObject = liveOrionModel;
+      }
 
-          if (targetObject) {
-            state.transformControls.attach(targetObject);
-            state.transformControls.visible = true;
-          } else {
-            state.transformControls.detach();
-            state.transformControls.visible = false;
-          }
-        }
+      if (targetObject) {
+        state.transformControls.attach(targetObject);
+        state.transformControls.visible = true;
+      } else {
+        state.transformControls.detach();
+        state.transformControls.visible = false;
+      }
+    }
 
 /* Builds the shared transform controls used for both Orion models. */
-        function buildTransformControls() {
-          if (state.transformControls) {
-            return;
-          }
+    function buildTransformControls() {
+      if (state.transformControls) {
+        return;
+      }
 
-          state.transformControls = new TransformControls(camera, refs.viewer);
-          state.transformControls.visible = false;
-          state.transformControls.setMode(state.settings.transformMode);
-          state.transformControls.setSize(0.8);
+      state.transformControls = new TransformControls(camera, refs.viewer);
+      state.transformControls.visible = false;
+      state.transformControls.setMode(state.settings.transformMode);
+      state.transformControls.setSize(0.8);
 
-          state.transformControls.addEventListener('dragging-changed', (event) => {
-            controls.enabled = !event.value;
-          });
+      state.transformControls.addEventListener('dragging-changed', (event) => {
+        controls.enabled = !event.value;
+      });
 
-          state.transformControls.addEventListener('objectChange', () => {
-            syncTransformSettingsFromAttachedObject();
-          });
+      state.transformControls.addEventListener('objectChange', () => {
+        syncTransformSettingsFromAttachedObject();
+      });
 
-          scene.add(state.transformControls);
-        }
+      scene.add(state.transformControls);
+    }
 
 
 
 
 /* Builds simplified planet markers around the Sun for extra solar-system context. */
-        function buildSolarSystem() {
-          if (solarSystemGroup) {
-            scene.remove(solarSystemGroup);
-          }
+    function buildSolarSystem() {
+      if (solarSystemGroup) {
+        scene.remove(solarSystemGroup);
+      }
 
-          solarSystemGroup = new THREE.Group();
-          solarSystemGroup.position.copy(sunGlow.position);
-          scene.add(solarSystemGroup);
-          solarPlanets = [];
+      solarSystemGroup = new THREE.Group();
+      solarSystemGroup.position.copy(sunGlow.position);
+      scene.add(solarSystemGroup);
+      solarPlanets = [];
 
-          const planetDefs = [
-            { name: 'Mercury', orbitRadius: 1.05, radius: 0.035, orbitDays: 88, color: '#c8b7a5', phase: 0.10 },
-            { name: 'Venus', orbitRadius: 1.35, radius: 0.050, orbitDays: 225, color: '#e5d0aa', phase: 0.22 },
-            { name: 'Mars', orbitRadius: 1.75, radius: 0.045, orbitDays: 687, color: '#d68b6d', phase: 0.35 },
-            { name: 'Jupiter', orbitRadius: 2.35, radius: 0.110, orbitDays: 4333, color: '#d8bb93', phase: 0.46 },
-            { name: 'Saturn', orbitRadius: 3.00, radius: 0.095, orbitDays: 10759, color: '#d9c89c', phase: 0.58 },
-            { name: 'Uranus', orbitRadius: 3.55, radius: 0.075, orbitDays: 30687, color: '#a8d8df', phase: 0.72 },
-            { name: 'Neptune', orbitRadius: 4.05, radius: 0.072, orbitDays: 60190, color: '#6c98de', phase: 0.86 }
-          ];
+      const planetDefs = [
+        { name: 'Mercury', orbitRadius: 1.05, radius: 0.035, orbitDays: 88, color: '#c8b7a5', phase: 0.10 },
+        { name: 'Venus', orbitRadius: 1.35, radius: 0.050, orbitDays: 225, color: '#e5d0aa', phase: 0.22 },
+        { name: 'Mars', orbitRadius: 1.75, radius: 0.045, orbitDays: 687, color: '#d68b6d', phase: 0.35 },
+        { name: 'Jupiter', orbitRadius: 2.35, radius: 0.110, orbitDays: 4333, color: '#d8bb93', phase: 0.46 },
+        { name: 'Saturn', orbitRadius: 3.00, radius: 0.095, orbitDays: 10759, color: '#d9c89c', phase: 0.58 },
+        { name: 'Uranus', orbitRadius: 3.55, radius: 0.075, orbitDays: 30687, color: '#a8d8df', phase: 0.72 },
+        { name: 'Neptune', orbitRadius: 4.05, radius: 0.072, orbitDays: 60190, color: '#6c98de', phase: 0.86 }
+      ];
 
-          for (const def of planetDefs) {
-            const mesh = new THREE.Mesh(
-              new THREE.SphereGeometry(def.radius, 18, 18),
-              new THREE.MeshBasicMaterial({ color: def.color })
-              );
+      for (const def of planetDefs) {
+        const mesh = new THREE.Mesh(
+          new THREE.SphereGeometry(def.radius, 18, 18),
+          new THREE.MeshBasicMaterial({ color: def.color })
+          );
 
-            mesh.userData.orbitRadius = def.orbitRadius;
-            mesh.userData.orbitDays = def.orbitDays;
-            mesh.userData.phase = def.phase;
-            solarSystemGroup.add(mesh);
+        mesh.userData.orbitRadius = def.orbitRadius;
+        mesh.userData.orbitDays = def.orbitDays;
+        mesh.userData.phase = def.phase;
+        solarSystemGroup.add(mesh);
 
-            solarPlanets.push({
-              name: def.name,
-              mesh
-            });
-          }
+        solarPlanets.push({
+          name: def.name,
+          mesh
+        });
+      }
 
-          updateSolarSystem(Date.now());
-        }
+      updateSolarSystem(Date.now());
+    }
 
 /* Updates simplified planet positions around the Sun. */
-        function updateSolarSystem(nowMs) {
-          if (!solarSystemGroup) {
-            return;
-          }
+    function updateSolarSystem(nowMs) {
+      if (!solarSystemGroup) {
+        return;
+      }
 
-          solarSystemGroup.position.copy(sunGlow.position);
+      solarSystemGroup.position.copy(sunGlow.position);
 
-          const days = nowMs / 86400000;
+      const days = nowMs / 86400000;
 
-          solarPlanets.forEach((planet, index) => {
-            const angle = ((days / planet.mesh.userData.orbitDays) + planet.mesh.userData.phase) * Math.PI * 2;
-            const radius = planet.mesh.userData.orbitRadius;
-            const tilt = (index % 3 - 1) * 0.06;
+      solarPlanets.forEach((planet, index) => {
+        const angle = ((days / planet.mesh.userData.orbitDays) + planet.mesh.userData.phase) * Math.PI * 2;
+        const radius = planet.mesh.userData.orbitRadius;
+        const tilt = (index % 3 - 1) * 0.06;
 
-            planet.mesh.position.set(
-              Math.cos(angle) * radius,
-              Math.sin(angle * 0.7) * tilt,
-              Math.sin(angle) * radius
-              );
+        planet.mesh.position.set(
+          Math.cos(angle) * radius,
+          Math.sin(angle * 0.7) * tilt,
+          Math.sin(angle) * radius
+          );
+      });
+    }
+
+
+
+
+
+/* Builds CSS scene labels for bodies, Orion, planets, and bright stars with configurable Y offsets. */
+    function buildLabels() {
+      if (!refs.labelsLayer) {
+        return;
+      }
+
+      refs.labelsLayer.innerHTML = '';
+      labelEntries = [];
+      brightStarAnchors = [];
+
+      const addLabel = (text, className, enabled, getPosition, getOffsetY) => {
+        const el = document.createElement('div');
+        el.className = className ? `scene-label ${className}` : 'scene-label';
+        el.textContent = text;
+        refs.labelsLayer.appendChild(el);
+
+        labelEntries.push({
+          el,
+          enabled,
+          getPosition,
+          getOffsetY
+        });
+      };
+
+      addLabel(
+        'Sun',
+        '',
+        () => state.settings.showObjectLabels,
+        () => sunGlow.position.clone(),
+        () => state.settings.labelBodiesOffsetY
+        );
+
+      addLabel(
+        'Earth',
+        '',
+        () => state.settings.showObjectLabels && !!earthGroup,
+        () => earthGroup.position.clone(),
+        () => state.settings.labelBodiesOffsetY
+        );
+
+      addLabel(
+        'Moon',
+        '',
+        () => state.settings.showObjectLabels && !!moonMesh,
+        () => moonMesh.position.clone(),
+        () => state.settings.labelBodiesOffsetY
+        );
+
+      addLabel(
+        'Orion',
+        '',
+        () => state.settings.showObjectLabels && (!!projectedMarker || !!liveMarker),
+        () => getCurrentOrionTarget(),
+        () => state.settings.labelOrionOffsetY
+        );
+
+      solarPlanets.forEach((planet) => {
+        addLabel(
+          planet.name,
+          'planet',
+          () => state.settings.showPlanets && state.settings.showPlanetLabels,
+          () => planet.mesh.getWorldPosition(new THREE.Vector3()),
+          () => state.settings.labelPlanetsOffsetY
+          );
+      });
+
+      if (milkyWayMesh) {
+        const starDefs = [
+          { name: 'Sirius', dir: [0.82, -0.18, 0.54] },
+          { name: 'Betelgeuse', dir: [0.45, 0.22, 0.86] },
+          { name: 'Rigel', dir: [0.36, -0.34, 0.87] },
+          { name: 'Vega', dir: [-0.42, 0.64, 0.64] },
+          { name: 'Polaris', dir: [0.02, 0.98, 0.16] }
+        ];
+
+        for (const def of starDefs) {
+          const anchor = new THREE.Object3D();
+          anchor.position.copy(
+            new THREE.Vector3(def.dir[0], def.dir[1], def.dir[2]).normalize().multiplyScalar(3900)
+            );
+          milkyWayMesh.add(anchor);
+
+          brightStarAnchors.push({
+            name: def.name,
+            anchor
           });
         }
 
-/* Builds CSS scene labels for bodies, Orion, planets, and bright stars. */
-        function buildLabels() {
-          if (!refs.labelsLayer) {
-            return;
-          }
-
-          refs.labelsLayer.innerHTML = '';
-          labelEntries = [];
-          brightStarAnchors = [];
-
-          const addLabel = (text, className, enabled, getPosition) => {
-            const el = document.createElement('div');
-            el.className = className ? `scene-label ${className}` : 'scene-label';
-            el.textContent = text;
-            refs.labelsLayer.appendChild(el);
-
-            labelEntries.push({
-              el,
-              enabled,
-              getPosition
-            });
-          };
-
+        brightStarAnchors.forEach((entry) => {
           addLabel(
-            'Sun',
-            '',
-            () => state.settings.showObjectLabels,
-            () => sunGlow.position.clone()
+            entry.name,
+            'star',
+            () => state.settings.showBrightStarLabels && state.settings.showMilkyWaySkybox,
+            () => entry.anchor.getWorldPosition(new THREE.Vector3()),
+            () => state.settings.labelStarsOffsetY
             );
+        });
+      }
+    }
 
-          addLabel(
-            'Earth',
-            '',
-            () => state.settings.showObjectLabels && !!earthGroup,
-            () => earthGroup.position.clone()
-            );
 
-          addLabel(
-            'Moon',
-            '',
-            () => state.settings.showObjectLabels && !!moonMesh,
-            () => moonMesh.position.clone()
-            );
 
-          addLabel(
-            'Orion',
-            '',
-            () => state.settings.showObjectLabels && (!!projectedMarker || !!liveMarker),
-            () => getCurrentOrionTarget()
-            );
 
-          solarPlanets.forEach((planet) => {
-            addLabel(
-              planet.name,
-              'planet',
-              () => state.settings.showPlanets && state.settings.showPlanetLabels,
-              () => planet.mesh.getWorldPosition(new THREE.Vector3())
-              );
-          });
 
-          if (milkyWayMesh) {
-            const starDefs = [
-              { name: 'Sirius', dir: [0.82, -0.18, 0.54] },
-              { name: 'Betelgeuse', dir: [0.45, 0.22, 0.86] },
-              { name: 'Rigel', dir: [0.36, -0.34, 0.87] },
-              { name: 'Vega', dir: [-0.42, 0.64, 0.64] },
-              { name: 'Polaris', dir: [0.02, 0.98, 0.16] }
-            ];
 
-            for (const def of starDefs) {
-              const anchor = new THREE.Object3D();
-              anchor.position.copy(
-                new THREE.Vector3(def.dir[0], def.dir[1], def.dir[2]).normalize().multiplyScalar(3900)
-                );
-              milkyWayMesh.add(anchor);
 
-              brightStarAnchors.push({
-                name: def.name,
-                anchor
-              });
-            }
 
-            brightStarAnchors.forEach((entry) => {
-              addLabel(
-                entry.name,
-                'star',
-                () => state.settings.showBrightStarLabels && state.settings.showMilkyWaySkybox,
-                () => entry.anchor.getWorldPosition(new THREE.Vector3())
-                );
-            });
-          }
+/* Projects CSS labels into screen space, applying configurable vertical offsets. */
+    function updateSceneLabels() {
+      if (!refs.labelsLayer || !labelEntries.length) {
+        return;
+      }
+
+      const width = refs.viewer.clientWidth;
+      const height = refs.viewer.clientHeight;
+
+      for (const entry of labelEntries) {
+        if (!entry.enabled()) {
+          entry.el.style.display = 'none';
+          continue;
         }
 
-/* Projects CSS labels into screen space and hides them when off-screen. */
-        function updateSceneLabels() {
-          if (!refs.labelsLayer || !labelEntries.length) {
-            return;
-          }
-
-          const width = refs.viewer.clientWidth;
-          const height = refs.viewer.clientHeight;
-
-          for (const entry of labelEntries) {
-            if (!entry.enabled()) {
-              entry.el.style.display = 'none';
-              continue;
-            }
-
-            const world = entry.getPosition();
-            if (!world) {
-              entry.el.style.display = 'none';
-              continue;
-            }
-
-            const projected = world.clone().project(camera);
-            const visible =
-            projected.z > -1 &&
-            projected.z < 1 &&
-            projected.x > -1.2 &&
-            projected.x < 1.2 &&
-            projected.y > -1.2 &&
-            projected.y < 1.2;
-
-            if (!visible) {
-              entry.el.style.display = 'none';
-              continue;
-            }
-
-            entry.el.style.display = 'block';
-            entry.el.style.left = `${(projected.x * 0.5 + 0.5) * width}px`;
-            entry.el.style.top = `${(-projected.y * 0.5 + 0.5) * height}px`;
-          }
+        const world = entry.getPosition();
+        if (!world) {
+          entry.el.style.display = 'none';
+          continue;
         }
+
+        const offsetY = entry.getOffsetY ? entry.getOffsetY() : 0;
+        const projected = world.clone().add(new THREE.Vector3(0, offsetY, 0)).project(camera);
+        const visible =
+        projected.z > -1 &&
+        projected.z < 1 &&
+        projected.x > -1.2 &&
+        projected.x < 1.2 &&
+        projected.y > -1.2 &&
+        projected.y < 1.2;
+
+        if (!visible) {
+          entry.el.style.display = 'none';
+          continue;
+        }
+
+        entry.el.style.display = 'block';
+        entry.el.style.left = `${(projected.x * 0.5 + 0.5) * width}px`;
+        entry.el.style.top = `${(-projected.y * 0.5 + 0.5) * height}px`;
+      }
+    }
+
+
+
+
+
+
 
 /* Handles transform-control keyboard shortcuts and Orion transform toggling. */
-        function onViewerKeydown(event) {
-          const tag = event.target && event.target.tagName ? event.target.tagName.toLowerCase() : '';
+    function onViewerKeydown(event) {
+      const tag = event.target && event.target.tagName ? event.target.tagName.toLowerCase() : '';
 
-          if (tag === 'input' || tag === 'textarea' || event.metaKey || event.ctrlKey || event.altKey) {
-            return;
-          }
+      if (tag === 'input' || tag === 'textarea' || event.metaKey || event.ctrlKey || event.altKey) {
+        return;
+      }
 
-          const key = event.key.toLowerCase();
+      const key = event.key.toLowerCase();
 
-          if (key === 'r') {
-            state.settings.transformMode = 'rotate';
-            syncSettingsToGui();
-            updateTransformControlsAttachment();
-            persistSettings();
-            return;
-          }
+      if (key === 'r') {
+        state.settings.transformMode = 'rotate';
+        syncSettingsToGui();
+        updateTransformControlsAttachment();
+        persistSettings();
+        return;
+      }
 
-          if (key === 's') {
-            state.settings.transformMode = 'scale';
-            syncSettingsToGui();
-            updateTransformControlsAttachment();
-            persistSettings();
-            return;
-          }
+      if (key === 's') {
+        state.settings.transformMode = 'scale';
+        syncSettingsToGui();
+        updateTransformControlsAttachment();
+        persistSettings();
+        return;
+      }
 
-          if (key === 'b') {
-            if (state.settings.transformTarget === 'none') {
-              state.settings.transformTarget = state.lastTransformTarget || 'projected';
-            } else {
-              state.lastTransformTarget = state.settings.transformTarget;
-              state.settings.transformTarget = 'none';
-            }
-
-            syncSettingsToGui();
-            updateTransformControlsAttachment();
-            persistSettings();
-          }
+      if (key === 'b') {
+        if (state.settings.transformTarget === 'none') {
+          state.settings.transformTarget = state.lastTransformTarget || 'projected';
+        } else {
+          state.lastTransformTarget = state.settings.transformTarget;
+          state.settings.transformTarget = 'none';
         }
+
+        syncSettingsToGui();
+        updateTransformControlsAttachment();
+        persistSettings();
+      }
+    }
 
 
 
 /* Rebuilds trajectory tubes and divider dots after OEM or settings changes. */
-        function rebuildTrails() {
-          if (!state.oemSamples.length) {
-            return;
-          }
+    function rebuildTrails() {
+      if (!state.oemSamples.length) {
+        return;
+      }
 
-          if (projectedTrailMesh) {
-            scene.remove(projectedTrailMesh);
-            projectedTrailMesh.geometry.dispose();
-            projectedTrailMesh.material.dispose();
-            projectedTrailMesh = null;
-          }
+      if (projectedTrailMesh) {
+        scene.remove(projectedTrailMesh);
+        projectedTrailMesh.geometry.dispose();
+        projectedTrailMesh.material.dispose();
+        projectedTrailMesh = null;
+      }
 
-          if (moonTrailMesh) {
-            scene.remove(moonTrailMesh);
-            moonTrailMesh.geometry.dispose();
-            moonTrailMesh.material.dispose();
-            moonTrailMesh = null;
-          }
+      if (moonTrailMesh) {
+        scene.remove(moonTrailMesh);
+        moonTrailMesh.geometry.dispose();
+        moonTrailMesh.material.dispose();
+        moonTrailMesh = null;
+      }
 
-          if (projectedDividerPoints) {
-            scene.remove(projectedDividerPoints);
-            projectedDividerPoints.geometry.dispose();
-            projectedDividerPoints.material.dispose();
-            projectedDividerPoints = null;
-          }
+      if (projectedDividerPoints) {
+        scene.remove(projectedDividerPoints);
+        projectedDividerPoints.geometry.dispose();
+        projectedDividerPoints.material.dispose();
+        projectedDividerPoints = null;
+      }
 
-          if (moonDividerPoints) {
-            scene.remove(moonDividerPoints);
-            moonDividerPoints.geometry.dispose();
-            moonDividerPoints.material.dispose();
-            moonDividerPoints = null;
-          }
+      if (moonDividerPoints) {
+        scene.remove(moonDividerPoints);
+        moonDividerPoints.geometry.dispose();
+        moonDividerPoints.material.dispose();
+        moonDividerPoints = null;
+      }
 
-          const projectedPathKm = state.oemSamples.map((sample) => sample.p);
-          const projectedPoints = projectedPathKm.map((sample) => toSceneVector(sample));
-          projectedTrailMesh = buildTube(
-            projectedPoints,
-            state.settings.projectedPathRadius,
-            state.settings.projectedPathColor,
-            state.settings.projectedPathOpacity
-            );
+      const projectedPathKm = state.oemSamples.map((sample) => sample.p);
+      const projectedPoints = projectedPathKm.map((sample) => toSceneVector(sample));
+      projectedTrailMesh = buildTube(
+        projectedPoints,
+        state.settings.projectedPathRadius,
+        state.settings.projectedPathColor,
+        state.settings.projectedPathOpacity
+        );
 
-          const moonPathKm = state.oemSamples.map((sample) => computeMoonPositionKm(sample.epochMs));
-          const moonPoints = moonPathKm.map((sample) => toSceneVector(sample));
-          moonTrailMesh = buildTube(
-            moonPoints,
-            state.settings.moonPathRadius,
-            state.settings.moonPathColor,
-            state.settings.moonPathOpacity
-            );
+      const moonPathKm = state.oemSamples.map((sample) => computeMoonPositionKm(sample.epochMs));
+      const moonPoints = moonPathKm.map((sample) => toSceneVector(sample));
+      moonTrailMesh = buildTube(
+        moonPoints,
+        state.settings.moonPathRadius,
+        state.settings.moonPathColor,
+        state.settings.moonPathOpacity
+        );
 
-          projectedDividerPoints = buildDividerPoints(
-            projectedPathKm,
-            state.settings.trajectoryDividerSpacingKm,
-            state.settings.trajectoryDividerColor,
-            state.settings.trajectoryDividerOpacity,
-            state.settings.trajectoryDividerSize
-            );
+      projectedDividerPoints = buildDividerPoints(
+        projectedPathKm,
+        state.settings.trajectoryDividerSpacingKm,
+        state.settings.trajectoryDividerColor,
+        state.settings.trajectoryDividerOpacity,
+        state.settings.trajectoryDividerSize
+        );
 
-          moonDividerPoints = buildDividerPoints(
-            moonPathKm,
-            state.settings.trajectoryDividerSpacingKm,
-            state.settings.trajectoryDividerColor,
-            state.settings.trajectoryDividerOpacity,
-            state.settings.trajectoryDividerSize
-            );
+      moonDividerPoints = buildDividerPoints(
+        moonPathKm,
+        state.settings.trajectoryDividerSpacingKm,
+        state.settings.trajectoryDividerColor,
+        state.settings.trajectoryDividerOpacity,
+        state.settings.trajectoryDividerSize
+        );
 
-          if (projectedTrailMesh) {
-            projectedTrailMesh.visible = state.settings.showTrails;
-            scene.add(projectedTrailMesh);
-          }
+      if (projectedTrailMesh) {
+        projectedTrailMesh.visible = state.settings.showTrails;
+        scene.add(projectedTrailMesh);
+      }
 
-          if (moonTrailMesh) {
-            moonTrailMesh.visible = state.settings.showTrails;
-            scene.add(moonTrailMesh);
-          }
+      if (moonTrailMesh) {
+        moonTrailMesh.visible = state.settings.showTrails;
+        scene.add(moonTrailMesh);
+      }
 
-          if (projectedDividerPoints) {
-            projectedDividerPoints.visible = state.settings.showTrails;
-            scene.add(projectedDividerPoints);
-          }
+      if (projectedDividerPoints) {
+        projectedDividerPoints.visible = state.settings.showTrails;
+        scene.add(projectedDividerPoints);
+      }
 
-          if (moonDividerPoints) {
-            moonDividerPoints.visible = state.settings.showTrails;
-            scene.add(moonDividerPoints);
-          }
-        }
+      if (moonDividerPoints) {
+        moonDividerPoints.visible = state.settings.showTrails;
+        scene.add(moonDividerPoints);
+      }
+    }
 
 
 
@@ -2307,155 +3732,155 @@
 
 
 /* Draws a sparkline chart with projected cursor and live reference markers. */
-        function drawChart(
-          canvas,
-          values,
-          color,
-          {
-            activeCursorRatio = null,
-            liveCursorRatio = null,
-            liveReferenceValue = null,
-            liveReferenceColor = '#79ffc9'
-          } = {}
-          ) {
-          const ctx = canvas.getContext('2d');
-          const width = canvas.width;
-          const height = canvas.height;
-          ctx.clearRect(0, 0, width, height);
-          ctx.fillStyle = 'rgba(255,255,255,0.02)';
-          ctx.fillRect(0, 0, width, height);
+    function drawChart(
+      canvas,
+      values,
+      color,
+      {
+        activeCursorRatio = null,
+        liveCursorRatio = null,
+        liveReferenceValue = null,
+        liveReferenceColor = '#79ffc9'
+      } = {}
+      ) {
+      const ctx = canvas.getContext('2d');
+      const width = canvas.width;
+      const height = canvas.height;
+      ctx.clearRect(0, 0, width, height);
+      ctx.fillStyle = 'rgba(255,255,255,0.02)';
+      ctx.fillRect(0, 0, width, height);
 
-          if (!values || values.length < 2) {
-            return;
-          }
+      if (!values || values.length < 2) {
+        return;
+      }
 
-          let min = Infinity;
-          let max = -Infinity;
+      let min = Infinity;
+      let max = -Infinity;
 
-          for (const value of values) {
-            if (value < min) min = value;
-            if (value > max) max = value;
-          }
+      for (const value of values) {
+        if (value < min) min = value;
+        if (value > max) max = value;
+      }
 
-          if (Number.isFinite(liveReferenceValue)) {
-            if (liveReferenceValue < min) min = liveReferenceValue;
-            if (liveReferenceValue > max) max = liveReferenceValue;
-          }
+      if (Number.isFinite(liveReferenceValue)) {
+        if (liveReferenceValue < min) min = liveReferenceValue;
+        if (liveReferenceValue > max) max = liveReferenceValue;
+      }
 
-          if (min === max) {
-            min -= 1;
-            max += 1;
-          }
+      if (min === max) {
+        min -= 1;
+        max += 1;
+      }
 
-          ctx.strokeStyle = 'rgba(255,255,255,0.08)';
-          ctx.lineWidth = 1;
-          ctx.beginPath();
-          ctx.moveTo(0, height - 0.5);
-          ctx.lineTo(width, height - 0.5);
-          ctx.stroke();
+      ctx.strokeStyle = 'rgba(255,255,255,0.08)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(0, height - 0.5);
+      ctx.lineTo(width, height - 0.5);
+      ctx.stroke();
 
-          ctx.strokeStyle = color;
-          ctx.lineWidth = 2;
-          ctx.setLineDash([]);
-          ctx.beginPath();
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 2;
+      ctx.setLineDash([]);
+      ctx.beginPath();
 
-          values.forEach((value, index) => {
-            const x = (index / (values.length - 1)) * width;
-            const y = height - ((value - min) / (max - min)) * (height - 6) - 3;
+      values.forEach((value, index) => {
+        const x = (index / (values.length - 1)) * width;
+        const y = height - ((value - min) / (max - min)) * (height - 6) - 3;
 
-            if (index === 0) {
-              ctx.moveTo(x, y);
-            } else {
-              ctx.lineTo(x, y);
-            }
-          });
-
-          ctx.stroke();
-
-          if (Number.isFinite(liveReferenceValue)) {
-            const y = height - ((liveReferenceValue - min) / (max - min)) * (height - 6) - 3;
-            ctx.strokeStyle = liveReferenceColor;
-            ctx.lineWidth = 1;
-            ctx.setLineDash([5, 4]);
-            ctx.beginPath();
-            ctx.moveTo(0, y);
-            ctx.lineTo(width, y);
-            ctx.stroke();
-          }
-
-          if (Number.isFinite(liveCursorRatio)) {
-            const x = Math.max(0, Math.min(width, liveCursorRatio * width));
-            ctx.strokeStyle = liveReferenceColor;
-            ctx.lineWidth = 1.5;
-            ctx.setLineDash([5, 4]);
-            ctx.beginPath();
-            ctx.moveTo(x, 0);
-            ctx.lineTo(x, height);
-            ctx.stroke();
-          }
-
-          if (Number.isFinite(activeCursorRatio)) {
-            const x = Math.max(0, Math.min(width, activeCursorRatio * width));
-            ctx.strokeStyle = 'rgba(255,255,255,0.92)';
-            ctx.lineWidth = 1.5;
-            ctx.setLineDash([]);
-            ctx.beginPath();
-            ctx.moveTo(x, 0);
-            ctx.lineTo(x, height);
-            ctx.stroke();
-          }
-
-          ctx.setLineDash([]);
+        if (index === 0) {
+          ctx.moveTo(x, y);
+        } else {
+          ctx.lineTo(x, y);
         }
+      });
+
+      ctx.stroke();
+
+      if (Number.isFinite(liveReferenceValue)) {
+        const y = height - ((liveReferenceValue - min) / (max - min)) * (height - 6) - 3;
+        ctx.strokeStyle = liveReferenceColor;
+        ctx.lineWidth = 1;
+        ctx.setLineDash([5, 4]);
+        ctx.beginPath();
+        ctx.moveTo(0, y);
+        ctx.lineTo(width, y);
+        ctx.stroke();
+      }
+
+      if (Number.isFinite(liveCursorRatio)) {
+        const x = Math.max(0, Math.min(width, liveCursorRatio * width));
+        ctx.strokeStyle = liveReferenceColor;
+        ctx.lineWidth = 1.5;
+        ctx.setLineDash([5, 4]);
+        ctx.beginPath();
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x, height);
+        ctx.stroke();
+      }
+
+      if (Number.isFinite(activeCursorRatio)) {
+        const x = Math.max(0, Math.min(width, activeCursorRatio * width));
+        ctx.strokeStyle = 'rgba(255,255,255,0.92)';
+        ctx.lineWidth = 1.5;
+        ctx.setLineDash([]);
+        ctx.beginPath();
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x, height);
+        ctx.stroke();
+      }
+
+      ctx.setLineDash([]);
+    }
 
 
 
 
 
 /* Refreshes projected charts with projected cursor and live-data reference lines. */
-        function updateCharts() {
-          if (!state.chartData) {
-            return;
-          }
+    function updateCharts() {
+      if (!state.chartData) {
+        return;
+      }
 
-          const liveRef = getLiveChartReferences();
+      const liveRef = getLiveChartReferences();
 
-          drawChart(
-            refs.chartDistance,
-            state.chartData.distance,
-            state.settings.projectedPathColor,
-            {
-              activeCursorRatio: state.chartCursorRatio,
-              liveCursorRatio: liveRef ? liveRef.ratio : null,
-              liveReferenceValue: liveRef ? liveRef.distance : null,
-              liveReferenceColor: state.settings.liveColor
-            }
-            );
-
-          drawChart(
-            refs.chartVelocity,
-            state.chartData.velocity,
-            state.settings.liveColor,
-            {
-              activeCursorRatio: state.chartCursorRatio,
-              liveCursorRatio: liveRef ? liveRef.ratio : null,
-              liveReferenceValue: liveRef ? liveRef.velocity : null,
-              liveReferenceColor: state.settings.liveColor
-            }
-            );
-
-          drawChart(
-            refs.chartMoonDistance,
-            state.chartData.moonDistance,
-            state.settings.moonPathColor,
-            {
-              activeCursorRatio: state.chartCursorRatio,
-              liveCursorRatio: liveRef ? liveRef.ratio : null,
-              liveReferenceValue: liveRef ? liveRef.moonDistance : null,
-              liveReferenceColor: state.settings.liveColor
-            }
-            );
+      drawChart(
+        refs.chartDistance,
+        state.chartData.distance,
+        state.settings.projectedPathColor,
+        {
+          activeCursorRatio: state.chartCursorRatio,
+          liveCursorRatio: liveRef ? liveRef.ratio : null,
+          liveReferenceValue: liveRef ? liveRef.distance : null,
+          liveReferenceColor: state.settings.liveColor
         }
+        );
+
+      drawChart(
+        refs.chartVelocity,
+        state.chartData.velocity,
+        state.settings.liveColor,
+        {
+          activeCursorRatio: state.chartCursorRatio,
+          liveCursorRatio: liveRef ? liveRef.ratio : null,
+          liveReferenceValue: liveRef ? liveRef.velocity : null,
+          liveReferenceColor: state.settings.liveColor
+        }
+        );
+
+      drawChart(
+        refs.chartMoonDistance,
+        state.chartData.moonDistance,
+        state.settings.moonPathColor,
+        {
+          activeCursorRatio: state.chartCursorRatio,
+          liveCursorRatio: liveRef ? liveRef.ratio : null,
+          liveReferenceValue: liveRef ? liveRef.moonDistance : null,
+          liveReferenceColor: state.settings.liveColor
+        }
+        );
+    }
 
 
 
@@ -2464,16 +3889,16 @@
 
     /* Updates active camera button state. */
 /* Updates active camera button state. */
-        function setActiveButton(name) {
-          document.querySelectorAll('.menu-button').forEach((button) => button.classList.remove('active'));
+    function setActiveButton(name) {
+      document.querySelectorAll('.menu-button').forEach((button) => button.classList.remove('active'));
 
-          if (name === 'fit') refs.cameraFit.classList.add('active');
-          if (name === 'sun') refs.cameraSun.classList.add('active');
-          if (name === 'earth') refs.cameraEarth.classList.add('active');
-          if (name === 'moon') refs.cameraMoon.classList.add('active');
-          if (name === 'live') refs.cameraLive.classList.add('active');
-          if (name === 'projected') refs.cameraProjected.classList.add('active');
-        }
+      if (name === 'fit') refs.cameraFit.classList.add('active');
+      if (name === 'sun') refs.cameraSun.classList.add('active');
+      if (name === 'earth') refs.cameraEarth.classList.add('active');
+      if (name === 'moon') refs.cameraMoon.classList.add('active');
+      if (name === 'live') refs.cameraLive.classList.add('active');
+      if (name === 'projected') refs.cameraProjected.classList.add('active');
+    }
 
 
 
@@ -2482,108 +3907,108 @@
 
 
     /* Starts a smooth camera move to a target and position. */
-        function moveCameraTo(target, position, presetName) {
-          state.activePreset = presetName;
-          setActiveButton(presetName);
-          state.cameraTween = {
-            fromPosition: camera.position.clone(),
-            fromTarget: controls.target.clone(),
-            toPosition: position.clone(),
-            toTarget: target.clone(),
-            startMs: performance.now(),
-            durationMs: 760
-          };
-        }
+    function moveCameraTo(target, position, presetName) {
+      state.activePreset = presetName;
+      setActiveButton(presetName);
+      state.cameraTween = {
+        fromPosition: camera.position.clone(),
+        fromTarget: controls.target.clone(),
+        toPosition: position.clone(),
+        toTarget: target.clone(),
+        startMs: performance.now(),
+        durationMs: 760
+      };
+    }
 
     /* Fits the camera to Earth, Moon, and both trajectories. */
-        function focusFit() {
-          const bounds = new THREE.Box3();
+    function focusFit() {
+      const bounds = new THREE.Box3();
 
-          if (earthGroup) bounds.expandByObject(earthGroup);
-          if (moonMesh) bounds.expandByObject(moonMesh);
-          if (projectedTrailMesh && projectedTrailMesh.visible) bounds.expandByObject(projectedTrailMesh);
-          if (moonTrailMesh && moonTrailMesh.visible) bounds.expandByObject(moonTrailMesh);
-          if (projectedMarker && projectedMarker.visible) bounds.expandByObject(projectedMarker);
-          if (liveMarker && liveMarker.visible) bounds.expandByObject(liveMarker);
+      if (earthGroup) bounds.expandByObject(earthGroup);
+      if (moonMesh) bounds.expandByObject(moonMesh);
+      if (projectedTrailMesh && projectedTrailMesh.visible) bounds.expandByObject(projectedTrailMesh);
+      if (moonTrailMesh && moonTrailMesh.visible) bounds.expandByObject(moonTrailMesh);
+      if (projectedMarker && projectedMarker.visible) bounds.expandByObject(projectedMarker);
+      if (liveMarker && liveMarker.visible) bounds.expandByObject(liveMarker);
 
-          const sphere = bounds.getBoundingSphere(new THREE.Sphere());
-          const radius = Math.max(sphere.radius, 0.6);
-          const distanceValue = radius * 2.1 / Math.tan(THREE.MathUtils.degToRad(camera.fov * 0.5));
-          const target = sphere.center.clone();
-          const position = target.clone().add(new THREE.Vector3(distanceValue, distanceValue * 0.42, distanceValue));
-          moveCameraTo(target, position, 'fit');
-        }
+      const sphere = bounds.getBoundingSphere(new THREE.Sphere());
+      const radius = Math.max(sphere.radius, 0.6);
+      const distanceValue = radius * 2.1 / Math.tan(THREE.MathUtils.degToRad(camera.fov * 0.5));
+      const target = sphere.center.clone();
+      const position = target.clone().add(new THREE.Vector3(distanceValue, distanceValue * 0.42, distanceValue));
+      moveCameraTo(target, position, 'fit');
+    }
 
 
 
 
 
 /* Focuses the camera on one hotspot and uses actual live/projected Orion positions. */
-        function focusPreset(name) {
-          const lookTarget = getSceneTargetByName(state.settings.travelLookTarget || 'none');
+    function focusPreset(name) {
+      const lookTarget = getSceneTargetByName(state.settings.travelLookTarget || 'none');
 
-          if (name === 'fit') {
-            focusFit();
-            return;
-          }
+      if (name === 'fit') {
+        focusFit();
+        return;
+      }
 
-          if (name === 'sun') {
-            const anchor = sunGlow.position.clone();
-            const target = lookTarget || anchor.clone();
-            const position = anchor.clone().add(new THREE.Vector3(1.35, 0.62, 1.55));
-            moveCameraTo(target, position, 'sun');
-            return;
-          }
+      if (name === 'sun') {
+        const anchor = sunGlow.position.clone();
+        const target = lookTarget || anchor.clone();
+        const position = anchor.clone().add(new THREE.Vector3(1.35, 0.62, 1.55));
+        moveCameraTo(target, position, 'sun');
+        return;
+      }
 
-          if (name === 'earth' && earthGroup) {
-            const anchor = earthGroup.position.clone();
-            const target = lookTarget || anchor.clone();
-            const position = anchor.clone().add(new THREE.Vector3(0.55, 0.26, 0.70));
-            moveCameraTo(target, position, 'earth');
-            return;
-          }
+      if (name === 'earth' && earthGroup) {
+        const anchor = earthGroup.position.clone();
+        const target = lookTarget || anchor.clone();
+        const position = anchor.clone().add(new THREE.Vector3(0.55, 0.26, 0.70));
+        moveCameraTo(target, position, 'earth');
+        return;
+      }
 
-          if (name === 'moon' && moonMesh) {
-            const anchor = moonMesh.position.clone();
-            const target = lookTarget || anchor.clone();
-            const position = anchor.clone().add(new THREE.Vector3(0.24, 0.14, 0.28));
-            moveCameraTo(target, position, 'moon');
-            return;
-          }
+      if (name === 'moon' && moonMesh) {
+        const anchor = moonMesh.position.clone();
+        const target = lookTarget || anchor.clone();
+        const position = anchor.clone().add(new THREE.Vector3(0.24, 0.14, 0.28));
+        moveCameraTo(target, position, 'moon');
+        return;
+      }
 
-          if (name === 'live') {
-            const target =
-            state.liveValid && state.liveState
-            ? toSceneVector(state.liveState.p)
-            : state.projectedState
-            ? toSceneVector(state.projectedState.p)
-            : liveOrionRoot && liveOrionRoot.visible
-            ? liveOrionRoot.position.clone()
-            : liveMarker
-            ? liveMarker.position.clone()
-            : null;
+      if (name === 'live') {
+        const target =
+        state.liveValid && state.liveState
+        ? toSceneVector(state.liveState.p)
+        : state.projectedState
+        ? toSceneVector(state.projectedState.p)
+        : liveOrionRoot && liveOrionRoot.visible
+        ? liveOrionRoot.position.clone()
+        : liveMarker
+        ? liveMarker.position.clone()
+        : null;
 
-            if (target) {
-              moveCameraTo(target, target.clone().add(new THREE.Vector3(0.12, 0.08, 0.14)), 'live');
-            }
-            return;
-          }
-
-          if (name === 'projected') {
-            const target =
-            state.projectedState
-            ? toSceneVector(state.projectedState.p)
-            : projectedOrionRoot && projectedOrionRoot.visible
-            ? projectedOrionRoot.position.clone()
-            : projectedMarker
-            ? projectedMarker.position.clone()
-            : null;
-
-            if (target) {
-              moveCameraTo(target, target.clone().add(new THREE.Vector3(0.12, 0.08, 0.14)), 'projected');
-            }
-          }
+        if (target) {
+          moveCameraTo(target, target.clone().add(new THREE.Vector3(0.12, 0.08, 0.14)), 'live');
         }
+        return;
+      }
+
+      if (name === 'projected') {
+        const target =
+        state.projectedState
+        ? toSceneVector(state.projectedState.p)
+        : projectedOrionRoot && projectedOrionRoot.visible
+        ? projectedOrionRoot.position.clone()
+        : projectedMarker
+        ? projectedMarker.position.clone()
+        : null;
+
+        if (target) {
+          moveCameraTo(target, target.clone().add(new THREE.Vector3(0.12, 0.08, 0.14)), 'projected');
+        }
+      }
+    }
 
 
 
@@ -2591,111 +4016,111 @@
 
 
     /* Applies Earth rotation from physical time instead of frame increments. */
-        function updateEarthRotation(nowMs) {
-          if (!earthGroup) {
-            return;
-          }
+    function updateEarthRotation(nowMs) {
+      if (!earthGroup) {
+        return;
+      }
 
-          const siderealDayMs = 86164.0905 * 1000;
-          const angle = ((nowMs % siderealDayMs) / siderealDayMs) * Math.PI * 2;
-          earthGroup.rotation.y = angle;
+      const siderealDayMs = 86164.0905 * 1000;
+      const angle = ((nowMs % siderealDayMs) / siderealDayMs) * Math.PI * 2;
+      earthGroup.rotation.y = angle;
 
-          if (earthClouds) {
-            earthClouds.rotation.y = angle * 1.015;
-            earthClouds.material.opacity = state.settings.cloudsOpacity;
-          }
-        }
+      if (earthClouds) {
+        earthClouds.rotation.y = angle * 1.015;
+        earthClouds.material.opacity = state.settings.cloudsOpacity;
+      }
+    }
 
 
 
 
 
 /* Applies settings to materials, lights, overlays, labels, planets, Orion visibility mode, and controls. */
-        function applySettings() {
-          document.documentElement.style.setProperty('--bg-top', state.settings.backgroundTop);
-          document.documentElement.style.setProperty('--bg-bottom', state.settings.backgroundBottom);
-          document.documentElement.style.setProperty('--panel', `rgba(5, 13, 28, ${state.settings.panelOpacity})`);
+    function applySettings() {
+      document.documentElement.style.setProperty('--bg-top', state.settings.backgroundTop);
+      document.documentElement.style.setProperty('--bg-bottom', state.settings.backgroundBottom);
+      document.documentElement.style.setProperty('--panel', `rgba(5, 13, 28, ${state.settings.panelOpacity})`);
 
-          refs.viewer.style.background =
-        `radial-gradient(circle at 50% 45%, rgba(23, 48, 95, 0.32), transparent 34%), linear-gradient(180deg, ${state.settings.backgroundTop} 0%, ${state.settings.backgroundBottom} 100%)`;
+      refs.viewer.style.background =
+    `radial-gradient(circle at 50% 45%, rgba(23, 48, 95, 0.32), transparent 34%), linear-gradient(180deg, ${state.settings.backgroundTop} 0%, ${state.settings.backgroundBottom} 100%)`;
 
-        scene.background = new THREE.Color(state.settings.backgroundBottom);
-        ambientLight.intensity = state.settings.ambientIntensity;
-        sunLight.intensity = state.settings.sunIntensity;
-        sunLight.color.set(state.settings.sunColor);
-        sunGlow.material.color.set(state.settings.sunColor);
+    scene.background = new THREE.Color(state.settings.backgroundBottom);
+    ambientLight.intensity = state.settings.ambientIntensity;
+    sunLight.intensity = state.settings.sunIntensity;
+    sunLight.color.set(state.settings.sunColor);
+    sunGlow.material.color.set(state.settings.sunColor);
 
-        if (milkyWayMesh) {
-          milkyWayMesh.visible = state.settings.showMilkyWaySkybox;
-          milkyWayMesh.material.color.setScalar(state.settings.milkyWayExposure);
-          milkyWayMesh.rotation.x = THREE.MathUtils.degToRad(state.settings.milkyWayRotationX);
-          milkyWayMesh.rotation.y = THREE.MathUtils.degToRad(state.settings.milkyWayRotationY);
-        }
+    if (milkyWayMesh) {
+      milkyWayMesh.visible = state.settings.showMilkyWaySkybox;
+      milkyWayMesh.material.color.setScalar(state.settings.milkyWayExposure);
+      milkyWayMesh.rotation.x = THREE.MathUtils.degToRad(state.settings.milkyWayRotationX);
+      milkyWayMesh.rotation.y = THREE.MathUtils.degToRad(state.settings.milkyWayRotationY);
+    }
 
-        if (solarSystemGroup) {
-          solarSystemGroup.visible = state.settings.showPlanets;
-        }
+    if (solarSystemGroup) {
+      solarSystemGroup.visible = state.settings.showPlanets;
+    }
 
-        if (starsPoints) {
-          starsPoints.visible = state.settings.showStars;
-          starsPoints.material.opacity = state.settings.starsBrightness;
-          starsPoints.material.size = state.settings.starsSize;
-        }
+    if (starsPoints) {
+      starsPoints.visible = state.settings.showStars;
+      starsPoints.material.opacity = state.settings.starsBrightness;
+      starsPoints.material.size = state.settings.starsSize;
+    }
 
-        if (projectedTrailMesh) {
-          projectedTrailMesh.visible = state.settings.showTrails;
-          projectedTrailMesh.material.color.set(state.settings.projectedPathColor);
-          projectedTrailMesh.material.opacity = state.settings.projectedPathOpacity;
-        }
+    if (projectedTrailMesh) {
+      projectedTrailMesh.visible = state.settings.showTrails;
+      projectedTrailMesh.material.color.set(state.settings.projectedPathColor);
+      projectedTrailMesh.material.opacity = state.settings.projectedPathOpacity;
+    }
 
-        if (moonTrailMesh) {
-          moonTrailMesh.visible = state.settings.showTrails;
-          moonTrailMesh.material.color.set(state.settings.moonPathColor);
-          moonTrailMesh.material.opacity = state.settings.moonPathOpacity;
-        }
+    if (moonTrailMesh) {
+      moonTrailMesh.visible = state.settings.showTrails;
+      moonTrailMesh.material.color.set(state.settings.moonPathColor);
+      moonTrailMesh.material.opacity = state.settings.moonPathOpacity;
+    }
 
-        if (projectedDividerPoints) {
-          projectedDividerPoints.visible = state.settings.showTrails;
-          projectedDividerPoints.material.color.set(state.settings.trajectoryDividerColor);
-          projectedDividerPoints.material.opacity = state.settings.trajectoryDividerOpacity;
-          projectedDividerPoints.material.size = state.settings.trajectoryDividerSize;
-        }
+    if (projectedDividerPoints) {
+      projectedDividerPoints.visible = state.settings.showTrails;
+      projectedDividerPoints.material.color.set(state.settings.trajectoryDividerColor);
+      projectedDividerPoints.material.opacity = state.settings.trajectoryDividerOpacity;
+      projectedDividerPoints.material.size = state.settings.trajectoryDividerSize;
+    }
 
-        if (moonDividerPoints) {
-          moonDividerPoints.visible = state.settings.showTrails;
-          moonDividerPoints.material.color.set(state.settings.trajectoryDividerColor);
-          moonDividerPoints.material.opacity = state.settings.trajectoryDividerOpacity;
-          moonDividerPoints.material.size = state.settings.trajectoryDividerSize;
-        }
+    if (moonDividerPoints) {
+      moonDividerPoints.visible = state.settings.showTrails;
+      moonDividerPoints.material.color.set(state.settings.trajectoryDividerColor);
+      moonDividerPoints.material.opacity = state.settings.trajectoryDividerOpacity;
+      moonDividerPoints.material.size = state.settings.trajectoryDividerSize;
+    }
 
-        if (liveMarker) {
-          liveMarker.material.color.set(state.settings.liveColor);
-          liveMarker.material.opacity = state.settings.liveOpacity;
-          liveMarker.material.transparent = state.settings.liveOpacity < 1;
-        }
+    if (liveMarker) {
+      liveMarker.material.color.set(state.settings.liveColor);
+      liveMarker.material.opacity = state.settings.liveOpacity;
+      liveMarker.material.transparent = state.settings.liveOpacity < 1;
+    }
 
-        if (liveHalo) {
-          liveHalo.material.color.set(state.settings.liveColor);
-          liveHalo.material.opacity = state.settings.liveHaloOpacity;
-        }
+    if (liveHalo) {
+      liveHalo.material.color.set(state.settings.liveColor);
+      liveHalo.material.opacity = state.settings.liveHaloOpacity;
+    }
 
-        if (projectedMarker) {
-          projectedMarker.material.color.set(state.settings.projectedColor);
-          projectedMarker.material.opacity = state.settings.projectedOpacity;
-          projectedMarker.material.transparent = state.settings.projectedOpacity < 1;
-        }
+    if (projectedMarker) {
+      projectedMarker.material.color.set(state.settings.projectedColor);
+      projectedMarker.material.opacity = state.settings.projectedOpacity;
+      projectedMarker.material.transparent = state.settings.projectedOpacity < 1;
+    }
 
-        refs.charts.style.display = state.settings.showCharts ? 'grid' : 'none';
-        refs.legend.style.display = state.settings.showLegend ? 'block' : 'none';
-        refs.toggleTrails.textContent = state.settings.showTrails ? 'Hide trails' : 'Show trails';
-        state.trailVisible = state.settings.showTrails;
+    refs.charts.style.display = state.settings.showCharts ? 'grid' : 'none';
+    refs.legend.style.display = state.settings.showLegend ? 'block' : 'none';
+    refs.toggleTrails.textContent = state.settings.showTrails ? 'Hide trails' : 'Show trails';
+    state.trailVisible = state.settings.showTrails;
 
-        applyOrionLocalTransforms();
-        updateTransformControlsAttachment();
-        syncTimelineUi(Date.now());
-        updateCharts();
-        updateSceneLabels();
-      }
+    applyOrionLocalTransforms();
+    updateTransformControlsAttachment();
+    syncTimelineUi(Date.now());
+    updateCharts();
+    updateSceneLabels();
+  }
 
 
 
@@ -2704,425 +4129,508 @@
 
 
     /* Refreshes the star field when star settings change. */
-      function rebuildStars() {
-        if (starsPoints) {
-          scene.remove(starsPoints);
-          starsPoints.geometry.dispose();
-          starsPoints.material.dispose();
-          starsPoints = null;
-        }
+  function rebuildStars() {
+    if (starsPoints) {
+      scene.remove(starsPoints);
+      starsPoints.geometry.dispose();
+      starsPoints.material.dispose();
+      starsPoints = null;
+    }
 
-        const starsGeometry = new THREE.BufferGeometry();
-        const stars = [];
+    const starsGeometry = new THREE.BufferGeometry();
+    const stars = [];
 
-        for (let i = 0; i < state.settings.starsDensity; i += 1) {
-          stars.push(
-            (Math.random() - 0.5) * 9000,
-            (Math.random() - 0.5) * 9000,
-            (Math.random() - 0.5) * 9000
-            );
-        }
+    for (let i = 0; i < state.settings.starsDensity; i += 1) {
+      stars.push(
+        (Math.random() - 0.5) * 9000,
+        (Math.random() - 0.5) * 9000,
+        (Math.random() - 0.5) * 9000
+        );
+    }
 
-        starsGeometry.setAttribute('position', new THREE.Float32BufferAttribute(stars, 3));
+    starsGeometry.setAttribute('position', new THREE.Float32BufferAttribute(stars, 3));
 
-        const starsMaterial = new THREE.PointsMaterial({
-          size: state.settings.starsSize,
-          sizeAttenuation: false,
-          transparent: true,
-          opacity: state.settings.starsBrightness
-        });
+    const starsMaterial = new THREE.PointsMaterial({
+      size: state.settings.starsSize,
+      sizeAttenuation: false,
+      transparent: true,
+      opacity: state.settings.starsBrightness
+    });
 
-        starsPoints = new THREE.Points(starsGeometry, starsMaterial);
-        starsPoints.visible = state.settings.showStars;
-        scene.add(starsPoints);
-      }
+    starsPoints = new THREE.Points(starsGeometry, starsMaterial);
+    starsPoints.visible = state.settings.showStars;
+    scene.add(starsPoints);
+  }
 
     /* Syncs current settings values back into lil-gui controls. */
-      function syncSettingsToGui() {
-        if (!state.gui) {
-          return;
-        }
+  function syncSettingsToGui() {
+    if (!state.gui) {
+      return;
+    }
 
-        for (const controller of state.gui.controllersRecursive()) {
-          controller.updateDisplay();
-        }
-      }
+    for (const controller of state.gui.controllersRecursive()) {
+      controller.updateDisplay();
+    }
+  }
 
 
 
 
 /* Handles one settings change, including optional persistence and live scene updates. */
-      async function handleSettingsChange(
+  async function handleSettingsChange(
+  {
+    rebuildStarField = false,
+    rebuildTrailMeshes = false,
+    persist = true
+  } = {}
+  ) {
+    if (rebuildStarField) {
+      rebuildStars();
+    }
+
+    if (rebuildTrailMeshes) {
+      rebuildTrails();
+    }
+
+    applySettings();
+
+    if (persist) {
+      await persistSettings();
+    }
+  }
+
+
+
+
+
+
+
+
+
+
+
+/* Builds the lil-gui panel for appearance, time, labels, travel, WebXR, and config actions. */
+  function buildGui() {
+    const gui = new GUI({
+      title: 'Tracker settings',
+      container: refs.guiHost
+    });
+
+    state.gui = gui;
+
+    const bindController = (
+      controller,
       {
         rebuildStarField = false,
-        rebuildTrailMeshes = false,
-        persist = true
+        rebuildTrailMeshes = false
       } = {}
-      ) {
-        if (rebuildStarField) {
-          rebuildStars();
-        }
-
-        if (rebuildTrailMeshes) {
-          rebuildTrails();
-        }
-
-        applySettings();
-
-        if (persist) {
-          await persistSettings();
-        }
-      }
-
-
-
-
-
-
-
-
-/* Builds the lil-gui panel for appearance, labels, planets, time, tracking, timeline, and Orion transforms. */
-      function buildGui() {
-        const gui = new GUI({
-          title: 'Tracker settings',
-          container: refs.guiHost
+      ) => {
+      controller.onChange(() => {
+        handleSettingsChange({
+          rebuildStarField,
+          rebuildTrailMeshes,
+          persist: false
         });
+      });
 
-        state.gui = gui;
+      controller.onFinishChange(() => {
+        handleSettingsChange({
+          rebuildStarField,
+          rebuildTrailMeshes,
+          persist: true
+        });
+      });
 
-        const bindController = (
-          controller,
-          {
-            rebuildStarField = false,
-            rebuildTrailMeshes = false
-          } = {}
-          ) => {
-          controller.onChange(() => {
-            handleSettingsChange({
-              rebuildStarField,
-              rebuildTrailMeshes,
-              persist: false
-            });
-          });
+      return controller;
+    };
 
-          controller.onFinishChange(() => {
-            handleSettingsChange({
-              rebuildStarField,
-              rebuildTrailMeshes,
-              persist: true
-            });
-          });
+    const appearance = gui.addFolder('Appearance');
+    bindController(appearance.addColor(state.settings, 'backgroundTop').name('BG top'));
+    bindController(appearance.addColor(state.settings, 'backgroundBottom').name('BG bottom'));
+    bindController(appearance.add(state.settings, 'panelOpacity', 0.35, 0.95, 0.01).name('Overlay opacity'));
+    bindController(appearance.add(state.settings, 'showCharts').name('Show charts'));
 
-          return controller;
-        };
 
-        const appearance = gui.addFolder('Appearance');
-        bindController(appearance.addColor(state.settings, 'backgroundTop').name('BG top'));
-        bindController(appearance.addColor(state.settings, 'backgroundBottom').name('BG bottom'));
-        bindController(appearance.add(state.settings, 'panelOpacity', 0.35, 0.95, 0.01).name('Overlay opacity'));
-        bindController(appearance.add(state.settings, 'showCharts').name('Show charts'));
-        bindController(appearance.add(state.settings, 'showLegend').name('Show legend'));
 
-        const labels = gui.addFolder('Labels');
-        bindController(labels.add(state.settings, 'showObjectLabels').name('Bodies'));
-        bindController(labels.add(state.settings, 'showBrightStarLabels').name('Bright stars'));
-        bindController(labels.add(state.settings, 'showPlanetLabels').name('Planet labels'));
+    const labels = gui.addFolder('Labels');
+    bindController(labels.add(state.settings, 'showObjectLabels').name('Bodies'));
+    bindController(labels.add(state.settings, 'showBrightStarLabels').name('Bright stars'));
+    bindController(labels.add(state.settings, 'showPlanetLabels').name('Planet labels'));
+    bindController(labels.add(state.settings, 'labelBodiesOffsetY', -0.5, 0.5, 0.005).name('Bodies Y'));
+    bindController(labels.add(state.settings, 'labelOrionOffsetY', -0.5, 0.5, 0.005).name('Orion Y'));
+    bindController(labels.add(state.settings, 'labelPlanetsOffsetY', -0.5, 0.5, 0.005).name('Planets Y'));
+    bindController(labels.add(state.settings, 'labelStarsOffsetY', -0.5, 0.5, 0.005).name('Stars Y'));
 
-        const solarSystem = gui.addFolder('Solar system');
-        bindController(solarSystem.add(state.settings, 'showPlanets').name('Show planets'));
+    const solarSystem = gui.addFolder('Solar system');
 
-        const timeFolder = gui.addFolder('Time');
-        bindController(timeFolder.add(state.settings, 'timeDisplayMode', ['UTC', 'Greenwich']).name('Display'));
 
-        const stars = gui.addFolder('Stars');
-        bindController(stars.add(state.settings, 'showStars').name('Visible'));
-        bindController(
-          stars.add(state.settings, 'starsDensity', 400, 8000, 1).name('Density'),
-          { rebuildStarField: true }
-          );
-        bindController(stars.add(state.settings, 'starsBrightness', 0.05, 1.0, 0.01).name('Brightness'));
-        bindController(stars.add(state.settings, 'starsSize', 0.2, 3.0, 0.1).name('Size'));
 
-        const skybox = gui.addFolder('Milky Way');
-        bindController(skybox.add(state.settings, 'showMilkyWaySkybox').name('Visible'));
-        bindController(skybox.add(state.settings, 'milkyWayExposure', 0.0, 3.0, 0.01).name('Exposure'));
-        bindController(skybox.add(state.settings, 'milkyWayRotationX', -180, 180, 0.1).name('Rotate X'));
-        bindController(skybox.add(state.settings, 'milkyWayRotationY', -180, 180, 0.1).name('Rotate Y'));
+    bindController(solarSystem.add(state.settings, 'showPlanets').name('Show planets'));
 
-        const lighting = gui.addFolder('Lighting');
-        bindController(lighting.addColor(state.settings, 'sunColor').name('Sun color'));
-        bindController(lighting.add(state.settings, 'sunIntensity', 0.1, 4.0, 0.01).name('Sun intensity'));
-        bindController(lighting.add(state.settings, 'ambientIntensity', 0.0, 1.0, 0.01).name('Ambient'));
-        bindController(lighting.add(state.settings, 'cloudsOpacity', 0.0, 1.0, 0.01).name('Cloud opacity'));
+    const timeFolder = gui.addFolder('Time');
+    bindController(timeFolder.add(state.settings, 'timeDisplayMode', ['UTC', 'Greenwich']).name('Display'));
 
-        const cameraFolder = gui.addFolder('Camera');
-        bindController(
-          cameraFolder.add(state.settings, 'travelLookTarget', ['none', 'orion', 'earth', 'moon', 'sun']).name('Travel looks at')
-          );
+    const stars = gui.addFolder('Stars');
+    bindController(stars.add(state.settings, 'showStars').name('Visible'));
+    bindController(
+      stars.add(state.settings, 'starsDensity', 400, 8000, 1).name('Density'),
+      { rebuildStarField: true }
+      );
+    bindController(stars.add(state.settings, 'starsBrightness', 0.05, 1.0, 0.01).name('Brightness'));
+    bindController(stars.add(state.settings, 'starsSize', 0.2, 3.0, 0.1).name('Size'));
 
-        const orionFolder = gui.addFolder('Orion');
-        bindController(
-          orionFolder.add(state.settings, 'orionDisplayMode', ['both', 'live', 'projected']).name('Display')
-          );
-        bindController(
-          orionFolder.add(state.settings, 'transformTarget', ['none', 'projected', 'live']).name('Transform target')
-          );
-        bindController(
-          orionFolder.add(state.settings, 'transformMode', ['translate', 'rotate', 'scale']).name('Transform mode')
-          );
+    const skybox = gui.addFolder('Milky Way');
+    bindController(skybox.add(state.settings, 'showMilkyWaySkybox').name('Visible'));
+    bindController(skybox.add(state.settings, 'milkyWayExposure', 0.0, 3.0, 0.01).name('Exposure'));
+    bindController(skybox.add(state.settings, 'milkyWayRotationX', -180, 180, 0.1).name('Rotate X'));
+    bindController(skybox.add(state.settings, 'milkyWayRotationY', -180, 180, 0.1).name('Rotate Y'));
 
-        const projectedOrion = gui.addFolder('Projected Orion');
-        bindController(projectedOrion.add(state.settings, 'projectedOrionRotationX', -180, 180, 0.1).name('Rot X'));
-        bindController(projectedOrion.add(state.settings, 'projectedOrionRotationY', -180, 180, 0.1).name('Rot Y'));
-        bindController(projectedOrion.add(state.settings, 'projectedOrionRotationZ', -180, 180, 0.1).name('Rot Z'));
-        bindController(projectedOrion.add(state.settings, 'projectedOrionOffsetX', -0.25, 0.25, 0.001).name('Offset X'));
-        bindController(projectedOrion.add(state.settings, 'projectedOrionOffsetY', -0.25, 0.25, 0.001).name('Offset Y'));
-        bindController(projectedOrion.add(state.settings, 'projectedOrionOffsetZ', -0.25, 0.25, 0.001).name('Offset Z'));
-        bindController(projectedOrion.add(state.settings, 'projectedOrionScale', 0.1, 10, 0.01).name('Scale'));
+    const lighting = gui.addFolder('Lighting');
+    bindController(lighting.addColor(state.settings, 'sunColor').name('Sun color'));
+    bindController(lighting.add(state.settings, 'sunIntensity', 0.1, 4.0, 0.01).name('Sun intensity'));
+    bindController(lighting.add(state.settings, 'ambientIntensity', 0.0, 1.0, 0.01).name('Ambient'));
+    bindController(lighting.add(state.settings, 'cloudsOpacity', 0.0, 1.0, 0.01).name('Cloud opacity'));
 
-        const liveOrion = gui.addFolder('Live Orion');
-        bindController(liveOrion.add(state.settings, 'liveOrionRotationX', -180, 180, 0.1).name('Rot X'));
-        bindController(liveOrion.add(state.settings, 'liveOrionRotationY', -180, 180, 0.1).name('Rot Y'));
-        bindController(liveOrion.add(state.settings, 'liveOrionRotationZ', -180, 180, 0.1).name('Rot Z'));
-        bindController(liveOrion.add(state.settings, 'liveOrionOffsetX', -0.25, 0.25, 0.001).name('Offset X'));
-        bindController(liveOrion.add(state.settings, 'liveOrionOffsetY', -0.25, 0.25, 0.001).name('Offset Y'));
-        bindController(liveOrion.add(state.settings, 'liveOrionOffsetZ', -0.25, 0.25, 0.001).name('Offset Z'));
-        bindController(liveOrion.add(state.settings, 'liveOrionScale', 0.1, 10, 0.01).name('Scale'));
+    const cameraFolder = gui.addFolder('Camera');
+    bindController(
+      cameraFolder.add(state.settings, 'travelLookTarget', ['none', 'orion', 'earth', 'moon', 'sun']).name('Travel looks at')
+      );
 
-        const trails = gui.addFolder('Trails');
-        bindController(trails.add(state.settings, 'showTrails').name('Visible'));
-        bindController(trails.addColor(state.settings, 'projectedPathColor').name('Orion color'));
-        bindController(trails.add(state.settings, 'projectedPathOpacity', 0.05, 1.0, 0.01).name('Orion opacity'));
-        bindController(
-          trails.add(state.settings, 'projectedPathRadius', 0.002, 0.05, 0.001).name('Orion width'),
-          { rebuildTrailMeshes: true }
-          );
-        bindController(trails.addColor(state.settings, 'moonPathColor').name('Moon color'));
-        bindController(trails.add(state.settings, 'moonPathOpacity', 0.05, 1.0, 0.01).name('Moon opacity'));
-        bindController(
-          trails.add(state.settings, 'moonPathRadius', 0.002, 0.05, 0.001).name('Moon width'),
-          { rebuildTrailMeshes: true }
-          );
+    const orionFolder = gui.addFolder('Orion');
+    bindController(orionFolder.add(state.settings, 'orionDisplayMode', ['both', 'live', 'projected']).name('Display'));
+    bindController(orionFolder.add(state.settings, 'transformTarget', ['none', 'projected', 'live']).name('Transform target'));
+    bindController(orionFolder.add(state.settings, 'transformMode', ['translate', 'rotate', 'scale']).name('Transform mode'));
 
-        const dividers = gui.addFolder('Trajectory dividers');
-        bindController(
-          dividers.add(state.settings, 'trajectoryDividerSpacingKm', 1000, 100000, 1000).name('Spacing km'),
-          { rebuildTrailMeshes: true }
-          );
-        bindController(dividers.add(state.settings, 'trajectoryDividerSize', 1, 20, 1).name('Dot size'));
-        bindController(dividers.addColor(state.settings, 'trajectoryDividerColor').name('Dot color'));
-        bindController(dividers.add(state.settings, 'trajectoryDividerOpacity', 0.05, 1.0, 0.01).name('Dot opacity'));
+    const projectedOrion = gui.addFolder('Projected Orion');
+    bindController(projectedOrion.add(state.settings, 'projectedOrionRotationX', -180, 180, 0.1).name('Rot X'));
+    bindController(projectedOrion.add(state.settings, 'projectedOrionRotationY', -180, 180, 0.1).name('Rot Y'));
+    bindController(projectedOrion.add(state.settings, 'projectedOrionRotationZ', -180, 180, 0.1).name('Rot Z'));
+    bindController(projectedOrion.add(state.settings, 'projectedOrionOffsetX', -0.25, 0.25, 0.001).name('Offset X'));
+    bindController(projectedOrion.add(state.settings, 'projectedOrionOffsetY', -0.25, 0.25, 0.001).name('Offset Y'));
+    bindController(projectedOrion.add(state.settings, 'projectedOrionOffsetZ', -0.25, 0.25, 0.001).name('Offset Z'));
+    bindController(projectedOrion.add(state.settings, 'projectedOrionScale', 0.1, 10, 0.01).name('Scale'));
 
-        const markers = gui.addFolder('Markers');
-        bindController(markers.addColor(state.settings, 'liveColor').name('Live color'));
-        bindController(markers.add(state.settings, 'liveOpacity', 0.05, 1.0, 0.01).name('Live opacity'));
-        bindController(markers.add(state.settings, 'liveHaloOpacity', 0.0, 1.0, 0.01).name('Live halo'));
-        bindController(markers.addColor(state.settings, 'projectedColor').name('Projected color'));
-        bindController(markers.add(state.settings, 'projectedOpacity', 0.05, 1.0, 0.01).name('Projected opacity'));
+    const liveOrion = gui.addFolder('Live Orion');
+    bindController(liveOrion.add(state.settings, 'liveOrionRotationX', -180, 180, 0.1).name('Rot X'));
+    bindController(liveOrion.add(state.settings, 'liveOrionRotationY', -180, 180, 0.1).name('Rot Y'));
+    bindController(liveOrion.add(state.settings, 'liveOrionRotationZ', -180, 180, 0.1).name('Rot Z'));
+    bindController(liveOrion.add(state.settings, 'liveOrionOffsetX', -0.25, 0.25, 0.001).name('Offset X'));
+    bindController(liveOrion.add(state.settings, 'liveOrionOffsetY', -0.25, 0.25, 0.001).name('Offset Y'));
+    bindController(liveOrion.add(state.settings, 'liveOrionOffsetZ', -0.25, 0.25, 0.001).name('Offset Z'));
+    bindController(liveOrion.add(state.settings, 'liveOrionScale', 0.1, 10, 0.01).name('Scale'));
 
-        gui.close();
-      }
+    const trails = gui.addFolder('Trails');
+    bindController(trails.add(state.settings, 'showTrails').name('Visible'));
+    bindController(trails.addColor(state.settings, 'projectedPathColor').name('Orion color'));
+    bindController(trails.add(state.settings, 'projectedPathOpacity', 0.05, 1.0, 0.01).name('Orion opacity'));
+    bindController(
+      trails.add(state.settings, 'projectedPathRadius', 0.002, 0.05, 0.001).name('Orion width'),
+      { rebuildTrailMeshes: true }
+      );
+    bindController(trails.addColor(state.settings, 'moonPathColor').name('Moon color'));
+    bindController(trails.add(state.settings, 'moonPathOpacity', 0.05, 1.0, 0.01).name('Moon opacity'));
+    bindController(
+      trails.add(state.settings, 'moonPathRadius', 0.002, 0.05, 0.001).name('Moon width'),
+      { rebuildTrailMeshes: true }
+      );
+
+    const dividers = gui.addFolder('Trajectory dividers');
+    bindController(
+      dividers.add(state.settings, 'trajectoryDividerSpacingKm', 1000, 100000, 1000).name('Spacing km'),
+      { rebuildTrailMeshes: true }
+      );
+    bindController(dividers.add(state.settings, 'trajectoryDividerSize', 1, 20, 1).name('Dot size'));
+    bindController(dividers.addColor(state.settings, 'trajectoryDividerColor').name('Dot color'));
+    bindController(dividers.add(state.settings, 'trajectoryDividerOpacity', 0.05, 1.0, 0.01).name('Dot opacity'));
+
+    const markers = gui.addFolder('Markers');
+    bindController(markers.addColor(state.settings, 'liveColor').name('Live color'));
+    bindController(markers.add(state.settings, 'liveOpacity', 0.05, 1.0, 0.01).name('Live opacity'));
+    bindController(markers.add(state.settings, 'liveHaloOpacity', 0.0, 1.0, 0.01).name('Live halo'));
+    bindController(markers.addColor(state.settings, 'projectedColor').name('Projected color'));
+    bindController(markers.add(state.settings, 'projectedOpacity', 0.05, 1.0, 0.01).name('Projected opacity'));
+
+    const xrFolder = gui.addFolder('WebXR');
+    bindController(xrFolder.add(state.settings, 'xrShowControllers').name('Show controllers'));
+    bindController(xrFolder.add(state.settings, 'xrShowHands').name('Show hands'));
+    bindController(xrFolder.add(state.settings, 'xrMoveEnabled').name('Thumbstick flight'));
+    bindController(xrFolder.add(state.settings, 'xrMoveSpeed', 1, 60, 0.1).name('Flight speed'));
+    bindController(xrFolder.add(state.settings, 'xrMoveAcceleration', 1, 80, 0.1).name('Accel'));
+    bindController(xrFolder.add(state.settings, 'xrMoveDamping', 0, 20, 0.1).name('Damping'));
+    bindController(xrFolder.add(state.settings, 'xrMoveDeadzone', 0.01, 0.5, 0.01).name('Deadzone'));
+    bindController(xrFolder.add(state.settings, 'xrMoveForwardInverted').name('Invert move'));
+
+    const xrTurn = xrFolder.addFolder('Right stick turn');
+    bindController(xrTurn.add(state.settings, 'xrTurnEnabled').name('Enabled'));
+    bindController(xrTurn.add(state.settings, 'xrTurnSpeed', 0.2, 4.0, 0.01).name('Turn speed'));
+    bindController(xrTurn.add(state.settings, 'xrTurnInverted').name('Invert turn'));
+
+    const xrMenu = xrFolder.addFolder('Mounted travel menu');
+    bindController(xrMenu.add(state.settings, 'xrTravelMenuEnabled').name('Enabled'));
+    bindController(
+      xrMenu.add(state.settings, 'xrTravelMenuAnchor', ['rightController', 'leftController', 'rightHand', 'leftHand']).name('Anchor')
+      );
+    bindController(xrMenu.add(state.settings, 'xrTravelMenuScale', 0.3, 2.4, 0.01).name('Scale'));
+    bindController(xrMenu.add(state.settings, 'xrTravelMenuRadius', 0.08, 0.28, 0.001).name('Radius'));
+    bindController(xrMenu.add(state.settings, 'xrTravelMenuOffsetX', -1, 1, 0.005).name('Offset X'));
+    bindController(xrMenu.add(state.settings, 'xrTravelMenuOffsetY', -1, 1, 0.005).name('Offset Y'));
+    bindController(xrMenu.add(state.settings, 'xrTravelMenuOffsetZ', -1, 1, 0.005).name('Offset Z'));
+    bindController(xrMenu.add(state.settings, 'xrTravelMenuRotX', -Math.PI, Math.PI, 0.01).name('Rot X'));
+    bindController(xrMenu.add(state.settings, 'xrTravelMenuRotY', -Math.PI, Math.PI, 0.01).name('Rot Y'));
+    bindController(xrMenu.add(state.settings, 'xrTravelMenuRotZ', -Math.PI, Math.PI, 0.01).name('Rot Z'));
+    bindController(xrMenu.add(state.settings, 'xrTravelMenuStartOpen').name('Start open'));
+
+
+
+
+    const xrTravel = xrFolder.addFolder('XR travel');
+    bindController(xrTravel.add(state.settings, 'xrTravelTransitionMode', ['straight', 'trajectory']).name('Transition'));
+    bindController(xrTravel.add(state.settings, 'xrTravelTransitionDurationMs', 200, 6000, 10).name('Duration ms'));
+    bindController(xrTravel.add(state.settings, 'xrTravelCurveHeight', 0, 1, 0.01).name('Curve height'));
+    bindController(xrTravel.add(state.settings, 'xrTravelPathBacktrack', 8, 240, 1).name('Path backtrack'));
+    bindController(xrTravel.add(state.settings, 'xrTravelPathSamples', 4, 64, 1).name('Path samples'));
+
+
+
+    const xrHandMenu = xrFolder.addFolder('Hand menu');
+    bindController(xrHandMenu.add(state.settings, 'xrHandMenuEnabled').name('Enabled'));
+    bindController(xrHandMenu.add(state.settings, 'xrHandMenuTogglePinchDistance', 0.005, 0.05, 0.001).name('Toggle pinch'));
+    bindController(xrHandMenu.add(state.settings, 'xrHandMenuSelectPinchDistance', 0.005, 0.05, 0.001).name('Select pinch'));
+    bindController(xrHandMenu.add(state.settings, 'xrHandMenuHoverRadius', 0.01, 0.2, 0.001).name('Hover radius'));
+    bindController(xrHandMenu.add(state.settings, 'xrHandMenuToggleCooldownMs', 100, 1200, 10).name('Toggle cooldown'));
+    bindController(xrHandMenu.add(state.settings, 'xrHandMenuSelectCooldownMs', 100, 1200, 10).name('Select cooldown'));
+
+
+
+    bindController(xrTravel.add(state.settings, 'xrTravelArrivalReference', ['controller', 'head']).name('Land by'));
+    bindController(xrTravel.add(state.settings, 'xrTravelArrivalDistance', 0.02, 3.0, 0.01).name('Land distance'));
+    bindController(xrTravel.add(state.settings, 'xrTravelArrivalHeight', -1.5, 1.5, 0.01).name('Land height'));
+
+
+
+
+    const configFolder = gui.addFolder('Config');
+    const configActions = {
+      save: () => saveConfigSnapshot(),
+      exportJson: () => exportConfigFile(),
+      importJson: () => refs.importFile.click(),
+      reset: () => resetConfigState()
+    };
+    configFolder.add(configActions, 'save').name('Save snapshot');
+    configFolder.add(configActions, 'exportJson').name('Export JSON');
+    configFolder.add(configActions, 'importJson').name('Import JSON');
+    configFolder.add(configActions, 'reset').name('Reset');
+
+    gui.close();
+  }
+
+
+
+
+
+
+
 
 
 
 /* Loads Earth, Moon, Milky Way, and Sun textures and builds the scene bodies. */
-      async function loadBodies() {
-        const [earthDay, earthNight, earthCloudMap, moonMap, milkyWayMap, sunMap] = await Promise.all([
-          loadTexture(EARTH_DAY_URL),
-          loadTexture(EARTH_NIGHT_URL),
-          loadTexture(EARTH_CLOUDS_URL),
-          loadTexture(MOON_URL),
-          loadTexture(MILKY_WAY_URL),
-          loadTexture(SUN_URL)
-        ]);
+  async function loadBodies() {
+    const [earthDay, earthNight, earthCloudMap, moonMap, milkyWayMap, sunMap] = await Promise.all([
+      loadTexture(EARTH_DAY_URL),
+      loadTexture(EARTH_NIGHT_URL),
+      loadTexture(EARTH_CLOUDS_URL),
+      loadTexture(MOON_URL),
+      loadTexture(MILKY_WAY_URL),
+      loadTexture(SUN_URL)
+    ]);
 
-        earthGroup = new THREE.Group();
-        scene.add(earthGroup);
+    earthGroup = new THREE.Group();
+    scene.add(earthGroup);
 
-        const earthGeometry = new THREE.SphereGeometry(toSceneValue(EARTH_RADIUS_KM), 64, 64);
-        const earthMaterial = earthDay && earthNight
-        ? new THREE.ShaderMaterial({
-          uniforms: {
-            dayMap: { value: earthDay },
-            nightMap: { value: earthNight },
-            lightDir: { value: sunDirection.clone() }
-          },
-          vertexShader: earthShader.vertexShader,
-          fragmentShader: earthShader.fragmentShader
+    const earthGeometry = new THREE.SphereGeometry(toSceneValue(EARTH_RADIUS_KM), 64, 64);
+    const earthMaterial = earthDay && earthNight
+    ? new THREE.ShaderMaterial({
+      uniforms: {
+        dayMap: { value: earthDay },
+        nightMap: { value: earthNight },
+        lightDir: { value: sunDirection.clone() }
+      },
+      vertexShader: earthShader.vertexShader,
+      fragmentShader: earthShader.fragmentShader
+    })
+    : new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 1.0, metalness: 0.0 });
+
+    earthSurface = new THREE.Mesh(earthGeometry, earthMaterial);
+    earthGroup.add(earthSurface);
+    tagInteractiveObject(earthSurface, 'earth');
+
+    if (earthCloudMap) {
+      earthClouds = new THREE.Mesh(
+        new THREE.SphereGeometry(toSceneValue(EARTH_RADIUS_KM * 1.008), 64, 64),
+        new THREE.MeshLambertMaterial({
+          map: earthCloudMap,
+          transparent: true,
+          opacity: state.settings.cloudsOpacity,
+          depthWrite: false
         })
-        : new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 1.0, metalness: 0.0 });
+        );
+      earthGroup.add(earthClouds);
+      tagInteractiveObject(earthClouds, 'earth');
+    }
 
-        earthSurface = new THREE.Mesh(earthGeometry, earthMaterial);
-        earthGroup.add(earthSurface);
-        tagInteractiveObject(earthSurface, 'earth');
+    moonMesh = new THREE.Mesh(
+      new THREE.SphereGeometry(toSceneValue(MOON_RADIUS_KM), 48, 48),
+      moonMap
+      ? new THREE.MeshStandardMaterial({ map: moonMap, roughness: 1.0, metalness: 0.0 })
+      : new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 1.0, metalness: 0.0 })
+      );
+    scene.add(moonMesh);
+    tagInteractiveObject(moonMesh, 'moon');
 
-        if (earthCloudMap) {
-          earthClouds = new THREE.Mesh(
-            new THREE.SphereGeometry(toSceneValue(EARTH_RADIUS_KM * 1.008), 64, 64),
-            new THREE.MeshLambertMaterial({
-              map: earthCloudMap,
-              transparent: true,
-              opacity: state.settings.cloudsOpacity,
-              depthWrite: false
-            })
-            );
-          earthGroup.add(earthClouds);
-          tagInteractiveObject(earthClouds, 'earth');
-        }
+    if (milkyWayMap) {
+      milkyWayMesh = new THREE.Mesh(
+        new THREE.SphereGeometry(4200, 64, 64),
+        new THREE.MeshBasicMaterial({
+          map: milkyWayMap,
+          side: THREE.BackSide,
+          transparent: true,
+          opacity: 1,
+          depthWrite: false,
+          toneMapped: false
+        })
+        );
+      milkyWayMesh.visible = state.settings.showMilkyWaySkybox;
+      scene.add(milkyWayMesh);
+    }
 
-        moonMesh = new THREE.Mesh(
-          new THREE.SphereGeometry(toSceneValue(MOON_RADIUS_KM), 48, 48),
-          moonMap
-          ? new THREE.MeshStandardMaterial({ map: moonMap, roughness: 1.0, metalness: 0.0 })
-          : new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 1.0, metalness: 0.0 })
-          );
-        scene.add(moonMesh);
-        tagInteractiveObject(moonMesh, 'moon');
+    if (sunMap) {
+      sunGlow.material.dispose();
+      sunGlow.material = new THREE.MeshBasicMaterial({
+        map: sunMap,
+        color: 0xffffff,
+        toneMapped: false
+      });
+    } else {
+      sunGlow.material.color.set(0xffffff);
+    }
 
-        if (milkyWayMap) {
-          milkyWayMesh = new THREE.Mesh(
-            new THREE.SphereGeometry(4200, 64, 64),
-            new THREE.MeshBasicMaterial({
-              map: milkyWayMap,
-              side: THREE.BackSide,
-              transparent: true,
-              opacity: 1,
-              depthWrite: false,
-              toneMapped: false
-            })
-            );
-          milkyWayMesh.visible = state.settings.showMilkyWaySkybox;
-          scene.add(milkyWayMesh);
-        }
+    tagInteractiveObject(sunGlow, 'sun');
 
-        if (sunMap) {
-          sunGlow.material.dispose();
-          sunGlow.material = new THREE.MeshBasicMaterial({
-            map: sunMap,
-            color: 0xffffff,
-            toneMapped: false
-          });
-        } else {
-          sunGlow.material.color.set(0xffffff);
-        }
+    projectedMarker = new THREE.Mesh(
+      new THREE.SphereGeometry(0.028, 18, 18),
+      new THREE.MeshBasicMaterial({
+        color: state.settings.projectedColor,
+        depthTest: false,
+        depthWrite: false,
+        transparent: state.settings.projectedOpacity < 1,
+        opacity: state.settings.projectedOpacity
+      })
+      );
+    projectedMarker.renderOrder = 30;
+    projectedMarker.visible = false;
+    scene.add(projectedMarker);
+    tagInteractiveObject(projectedMarker, 'projected');
 
-        tagInteractiveObject(sunGlow, 'sun');
+    liveMarker = new THREE.Mesh(
+      new THREE.SphereGeometry(0.026, 18, 18),
+      new THREE.MeshBasicMaterial({
+        color: state.settings.liveColor,
+        depthTest: false,
+        depthWrite: false,
+        transparent: state.settings.liveOpacity < 1,
+        opacity: state.settings.liveOpacity
+      })
+      );
+    liveMarker.renderOrder = 31;
+    liveMarker.visible = false;
+    scene.add(liveMarker);
+    tagInteractiveObject(liveMarker, 'live');
 
-        projectedMarker = new THREE.Mesh(
-          new THREE.SphereGeometry(0.028, 18, 18),
-          new THREE.MeshBasicMaterial({
-            color: state.settings.projectedColor,
-            depthTest: false,
-            depthWrite: false,
-            transparent: state.settings.projectedOpacity < 1,
-            opacity: state.settings.projectedOpacity
-          })
-          );
-        projectedMarker.renderOrder = 30;
-        projectedMarker.visible = false;
-        scene.add(projectedMarker);
-        tagInteractiveObject(projectedMarker, 'projected');
-
-        liveMarker = new THREE.Mesh(
-          new THREE.SphereGeometry(0.026, 18, 18),
-          new THREE.MeshBasicMaterial({
-            color: state.settings.liveColor,
-            depthTest: false,
-            depthWrite: false,
-            transparent: state.settings.liveOpacity < 1,
-            opacity: state.settings.liveOpacity
-          })
-          );
-        liveMarker.renderOrder = 31;
-        liveMarker.visible = false;
-        scene.add(liveMarker);
-        tagInteractiveObject(liveMarker, 'live');
-
-        liveHalo = new THREE.Mesh(
-          new THREE.SphereGeometry(0.040, 16, 16),
-          new THREE.MeshBasicMaterial({
-            color: state.settings.liveColor,
-            transparent: true,
-            opacity: state.settings.liveHaloOpacity,
-            depthTest: false,
-            depthWrite: false
-          })
-          );
-        liveHalo.renderOrder = 29;
-        liveHalo.visible = false;
-        scene.add(liveHalo);
-      }
+    liveHalo = new THREE.Mesh(
+      new THREE.SphereGeometry(0.040, 16, 16),
+      new THREE.MeshBasicMaterial({
+        color: state.settings.liveColor,
+        transparent: true,
+        opacity: state.settings.liveHaloOpacity,
+        depthTest: false,
+        depthWrite: false
+      })
+      );
+    liveHalo.renderOrder = 29;
+    liveHalo.visible = false;
+    scene.add(liveHalo);
+  }
 
 
 
 /* Clones the loaded Orion model, wraps it in a root group, and tags it for camera focus. */
-      function createOrionModelInstance(presetName) {
-        if (!modelTemplate) {
-          return { root: null, model: null };
-        }
+  function createOrionModelInstance(presetName) {
+    if (!modelTemplate) {
+      return { root: null, model: null };
+    }
 
-        const root = new THREE.Group();
-        root.visible = false;
+    const root = new THREE.Group();
+    root.visible = false;
 
-        const model = modelTemplate.clone(true);
-        model.scale.setScalar(0.012);
+    const model = modelTemplate.clone(true);
+    model.scale.setScalar(0.012);
 
-        model.traverse((child) => {
-          if (child.isMesh) {
-            child.castShadow = false;
-            child.receiveShadow = false;
-          }
-        });
-
-        root.add(model);
-        tagInteractiveObject(root, presetName);
-        scene.add(root);
-
-        return { root, model };
+    model.traverse((child) => {
+      if (child.isMesh) {
+        child.castShadow = false;
+        child.receiveShadow = false;
       }
+    });
+
+    root.add(model);
+    tagInteractiveObject(root, presetName);
+    scene.add(root);
+
+    return { root, model };
+  }
 
 
 
 
 
 /* Loads the Draco-compressed Orion GLB model and creates projected and live root/model pairs. */
-      async function loadOrionModel() {
-        const draco = new DRACOLoader();
-        draco.setDecoderPath('https://cdn.jsdelivr.net/npm/three@0.162.0/examples/jsm/libs/draco/');
+  async function loadOrionModel() {
+    const draco = new DRACOLoader();
+    draco.setDecoderPath('https://cdn.jsdelivr.net/npm/three@0.162.0/examples/jsm/libs/draco/');
 
-        const loader = new GLTFLoader();
-        loader.setDRACOLoader(draco);
+    const loader = new GLTFLoader();
+    loader.setDRACOLoader(draco);
 
-        return new Promise((resolve) => {
-          loader.load(
-            ORION_GLB_URL,
-            (gltf) => {
-              modelTemplate = gltf.scene;
+    return new Promise((resolve) => {
+      loader.load(
+        ORION_GLB_URL,
+        (gltf) => {
+          modelTemplate = gltf.scene;
 
-              const projectedInstance = createOrionModelInstance('projected');
-              projectedOrionRoot = projectedInstance.root;
-              projectedOrionModel = projectedInstance.model;
+          const projectedInstance = createOrionModelInstance('projected');
+          projectedOrionRoot = projectedInstance.root;
+          projectedOrionModel = projectedInstance.model;
 
-              const liveInstance = createOrionModelInstance('live');
-              liveOrionRoot = liveInstance.root;
-              liveOrionModel = liveInstance.model;
+          const liveInstance = createOrionModelInstance('live');
+          liveOrionRoot = liveInstance.root;
+          liveOrionModel = liveInstance.model;
 
-              applyOrionLocalTransforms();
-              updateTransformControlsAttachment();
+          applyOrionLocalTransforms();
+          updateTransformControlsAttachment();
 
-              refs.modelBadge.textContent = 'Orion model ok';
-              refs.modelBadge.className = 'badge ok';
-              resolve();
-            },
-            undefined,
-            () => {
-              refs.modelBadge.textContent = 'Orion model failed';
-              refs.modelBadge.className = 'badge warn';
-              resolve();
-            }
-            );
-        });
-      }
+          refs.modelBadge.textContent = 'Orion model ok';
+          refs.modelBadge.className = 'badge ok';
+          resolve();
+        },
+        undefined,
+        () => {
+          refs.modelBadge.textContent = 'Orion model failed';
+          refs.modelBadge.className = 'badge warn';
+          resolve();
+        }
+        );
+    });
+  }
 
 
 
@@ -3130,224 +4638,224 @@
 
 
     /* Loads OEM data and builds projected Orion and Moon trajectories. */
-      async function loadOemTrajectories() {
-        const response = await fetch(OEM_URL, { cache: 'no-store' });
+  async function loadOemTrajectories() {
+    const response = await fetch(OEM_URL, { cache: 'no-store' });
 
-        if (!response.ok) {
-          throw new Error(`OEM HTTP ${response.status}`);
-        }
+    if (!response.ok) {
+      throw new Error(`OEM HTTP ${response.status}`);
+    }
 
-        const text = await response.text();
-        state.oemSamples = parseOemText(text);
+    const text = await response.text();
+    state.oemSamples = parseOemText(text);
 
-        if (!state.oemSamples.length) {
-          throw new Error('No OEM samples found');
-        }
+    if (!state.oemSamples.length) {
+      throw new Error('No OEM samples found');
+    }
 
-        state.oemStartMs = state.oemSamples[0].epochMs;
-        state.oemStopMs = state.oemSamples[state.oemSamples.length - 1].epochMs;
+    state.oemStartMs = state.oemSamples[0].epochMs;
+    state.oemStopMs = state.oemSamples[state.oemSamples.length - 1].epochMs;
 
-        const moonPathSamples = state.oemSamples.map((sample) => computeMoonPositionKm(sample.epochMs));
-        state.chartData = {
-          distance: state.oemSamples.map((sample) => magnitude(sample.p)),
-          velocity: state.oemSamples.map((sample) => magnitude(sample.v) * 3600),
-          moonDistance: state.oemSamples.map((sample, index) => distance(sample.p, moonPathSamples[index]))
-        };
+    const moonPathSamples = state.oemSamples.map((sample) => computeMoonPositionKm(sample.epochMs));
+    state.chartData = {
+      distance: state.oemSamples.map((sample) => magnitude(sample.p)),
+      velocity: state.oemSamples.map((sample) => magnitude(sample.v) * 3600),
+      moonDistance: state.oemSamples.map((sample, index) => distance(sample.p, moonPathSamples[index]))
+    };
 
-        rebuildTrails();
-        updateCharts();
-      }
+    rebuildTrails();
+    updateCharts();
+  }
 
     /* Polls the live Orion feed without breaking the UI on parse mismatch. */
-      async function pollLiveTelemetry() {
-        try {
-          const response = await fetch(LIVE_ORION_URL, { cache: 'no-store' });
+  async function pollLiveTelemetry() {
+    try {
+      const response = await fetch(LIVE_ORION_URL, { cache: 'no-store' });
 
-          if (!response.ok) {
-            throw new Error(`HTTP ${response.status}`);
-          }
-
-          const text = await response.text();
-          const parsed = parseLivePayload(text);
-          const normalized = normalizeLiveState(parsed);
-
-          if (isValidLiveState(normalized)) {
-            state.liveState = normalized;
-            state.liveValid = true;
-            state.lastLiveUpdateMs = normalized.timeMs || Date.now();
-            state.lastLiveSource = parsed.source === 'parameter-map' ? 'parameter map live' : 'legacy live';
-          } else {
-            state.liveValid = false;
-            state.lastLiveSource = 'live rejected';
-          }
-        } catch {
-          state.liveValid = false;
-          state.lastLiveSource = 'live waiting';
-        } finally {
-          setTimeout(pollLiveTelemetry, LIVE_POLL_MS);
-        }
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
       }
+
+      const text = await response.text();
+      const parsed = parseLivePayload(text);
+      const normalized = normalizeLiveState(parsed);
+
+      if (isValidLiveState(normalized)) {
+        state.liveState = normalized;
+        state.liveValid = true;
+        state.lastLiveUpdateMs = normalized.timeMs || Date.now();
+        state.lastLiveSource = parsed.source === 'parameter-map' ? 'parameter map live' : 'legacy live';
+      } else {
+        state.liveValid = false;
+        state.lastLiveSource = 'live rejected';
+      }
+    } catch {
+      state.liveValid = false;
+      state.lastLiveSource = 'live waiting';
+    } finally {
+      setTimeout(pollLiveTelemetry, LIVE_POLL_MS);
+    }
+  }
 
 
 
 
 
 /* Refreshes overlay text from live and projected state with selected time display mode. */
-      function updateHud(nowMs, moonKm) {
-        const active = state.liveValid && state.liveState ? state.liveState : state.projectedState;
-        const timeModeLabel = state.settings.timeDisplayMode === 'Greenwich' ? 'Greenwich/London' : 'UTC';
+  function updateHud(nowMs, moonKm) {
+    const active = state.liveValid && state.liveState ? state.liveState : state.projectedState;
+    const timeModeLabel = state.settings.timeDisplayMode === 'Greenwich' ? 'Greenwich/London' : 'UTC';
 
-        refs.modeValue.textContent = state.liveValid ? 'LIVE + OEM' : 'OEM ONLY';
-        refs.modeSub.textContent = state.liveValid
-        ? 'Live Orion accepted · projected always visible'
-        : 'Projected fallback active';
+    refs.modeValue.textContent = state.liveValid ? 'LIVE + OEM' : 'OEM ONLY';
+    refs.modeSub.textContent = state.liveValid
+    ? 'Live Orion accepted · projected always visible'
+    : 'Projected fallback active';
 
-        refs.lastUpdateValue.textContent = state.lastLiveUpdateMs ? formatUtc(state.lastLiveUpdateMs) : '—';
-        refs.lastUpdateSub.textContent = `${state.lastLiveSource} · ${timeModeLabel}`;
+    refs.lastUpdateValue.textContent = state.lastLiveUpdateMs ? formatUtc(state.lastLiveUpdateMs) : '—';
+    refs.lastUpdateSub.textContent = `${state.lastLiveSource} · ${timeModeLabel}`;
 
-        if (active) {
-          refs.earthDistanceValue.textContent = formatKm(magnitude(active.p));
-          refs.earthDistanceSub.textContent = state.liveValid ? 'live Orion' : 'projected Orion';
-          refs.moonDistanceValue.textContent = formatKm(distance(active.p, moonKm));
-          refs.moonDistanceSub.textContent = state.liveValid ? 'live Orion vs predicted Moon' : 'projected Orion vs predicted Moon';
-        } else {
-          refs.earthDistanceValue.textContent = '—';
-          refs.moonDistanceValue.textContent = '—';
-        }
+    if (active) {
+      refs.earthDistanceValue.textContent = formatKm(magnitude(active.p));
+      refs.earthDistanceSub.textContent = state.liveValid ? 'live Orion' : 'projected Orion';
+      refs.moonDistanceValue.textContent = formatKm(distance(active.p, moonKm));
+      refs.moonDistanceSub.textContent = state.liveValid ? 'live Orion vs predicted Moon' : 'projected Orion vs predicted Moon';
+    } else {
+      refs.earthDistanceValue.textContent = '—';
+      refs.moonDistanceValue.textContent = '—';
+    }
 
-        if (active?.v) {
-          refs.velocityValue.textContent = formatSpeed(magnitude(active.v) * 3600);
-          refs.velocitySub.textContent = state.liveValid ? 'live feed' : 'projected OEM';
-        } else {
-          refs.velocityValue.textContent = '—';
-        }
+    if (active?.v) {
+      refs.velocityValue.textContent = formatSpeed(magnitude(active.v) * 3600);
+      refs.velocitySub.textContent = state.liveValid ? 'live feed' : 'projected OEM';
+    } else {
+      refs.velocityValue.textContent = '—';
+    }
 
-        if (state.liveValid && state.liveState && state.projectedState) {
-          refs.deltaValue.textContent = formatKm(distance(state.liveState.p, state.projectedState.p));
-          refs.deltaSub.textContent = 'live vs projected';
-        } else {
-          refs.deltaValue.textContent = '—';
-          refs.deltaSub.textContent = 'needs live + OEM';
-        }
+    if (state.liveValid && state.liveState && state.projectedState) {
+      refs.deltaValue.textContent = formatKm(distance(state.liveState.p, state.projectedState.p));
+      refs.deltaSub.textContent = 'live vs projected';
+    } else {
+      refs.deltaValue.textContent = '—';
+      refs.deltaSub.textContent = 'needs live + OEM';
+    }
 
-        if (state.oemStartMs) {
-          refs.metValue.textContent = formatDuration(nowMs - state.oemStartMs);
-          refs.metSub.textContent = `OEM start ${formatUtc(state.oemStartMs)}`;
-          const flightDay = Math.max(1, Math.floor((nowMs - state.oemStartMs) / 86400000) + 1);
-          refs.flightDayValue.textContent = String(flightDay);
+    if (state.oemStartMs) {
+      refs.metValue.textContent = formatDuration(nowMs - state.oemStartMs);
+      refs.metSub.textContent = `OEM start ${formatUtc(state.oemStartMs)}`;
+      const flightDay = Math.max(1, Math.floor((nowMs - state.oemStartMs) / 86400000) + 1);
+      refs.flightDayValue.textContent = String(flightDay);
 
-          if (state.oemStopMs && state.oemStopMs > state.oemStartMs) {
-            const progress = Math.max(0, Math.min(100, ((nowMs - state.oemStartMs) / (state.oemStopMs - state.oemStartMs)) * 100));
-            refs.flightDaySub.textContent = `OEM window ${progress.toFixed(1)}%`;
-          }
-        }
-
-        refs.statusText.textContent = [
-          `OEM ${state.oemSamples.length ? `${state.oemSamples.length.toLocaleString()} samples` : 'loading'}`,
-          `Live ${state.liveValid ? 'ok' : state.lastLiveSource}`,
-          `Moon ${formatKm(magnitude(moonKm))}`,
-          `Time ${timeModeLabel}`,
-          `Trails ${state.settings.showTrails ? 'visible' : 'hidden'}`
-        ].join(' · ');
-
-        refs.oemBadge.textContent = state.oemSamples.length ? 'OEM loaded' : 'OEM loading';
-        refs.oemBadge.className = `badge ${state.oemSamples.length ? 'ok' : 'warn'}`;
-        refs.liveBadge.textContent = state.liveValid ? 'Live Orion ok' : state.lastLiveSource;
-        refs.liveBadge.className = `badge ${state.liveValid ? 'ok' : 'warn'}`;
+      if (state.oemStopMs && state.oemStopMs > state.oemStartMs) {
+        const progress = Math.max(0, Math.min(100, ((nowMs - state.oemStartMs) / (state.oemStopMs - state.oemStartMs)) * 100));
+        refs.flightDaySub.textContent = `OEM window ${progress.toFixed(1)}%`;
       }
+    }
+
+    refs.statusText.textContent = [
+      `OEM ${state.oemSamples.length ? `${state.oemSamples.length.toLocaleString()} samples` : 'loading'}`,
+      `Live ${state.liveValid ? 'ok' : state.lastLiveSource}`,
+      `Moon ${formatKm(magnitude(moonKm))}`,
+      `Time ${timeModeLabel}`,
+      `Trails ${state.settings.showTrails ? 'visible' : 'hidden'}`
+    ].join(' · ');
+
+    refs.oemBadge.textContent = state.oemSamples.length ? 'OEM loaded' : 'OEM loading';
+    refs.oemBadge.className = `badge ${state.oemSamples.length ? 'ok' : 'warn'}`;
+    refs.liveBadge.textContent = state.liveValid ? 'Live Orion ok' : state.lastLiveSource;
+    refs.liveBadge.className = `badge ${state.liveValid ? 'ok' : 'warn'}`;
+  }
 
 
 
 
 
 /* Updates projected/live Orion, Moon, planets, chart cursor, timeline scrub, and transform gizmo visibility. */
-      function updateScene(nowMs) {
-        const projectedTimeMs = getActiveProjectedTimeMs(nowMs);
-        state.projectedTimeMs = projectedTimeMs;
+  function updateScene(nowMs) {
+    const projectedTimeMs = getActiveProjectedTimeMs(nowMs);
+    state.projectedTimeMs = projectedTimeMs;
 
-        if (state.oemStartMs && state.oemStopMs) {
-          const spanMs = Math.max(1, state.oemStopMs - state.oemStartMs);
-          state.chartCursorRatio = Math.max(0, Math.min(1, (projectedTimeMs - state.oemStartMs) / spanMs));
-        }
+    if (state.oemStartMs && state.oemStopMs) {
+      const spanMs = Math.max(1, state.oemStopMs - state.oemStartMs);
+      state.chartCursorRatio = Math.max(0, Math.min(1, (projectedTimeMs - state.oemStartMs) / spanMs));
+    }
 
-        state.projectedState = getProjectedState(projectedTimeMs);
-        const moonKm = computeMoonPositionKm(projectedTimeMs);
+    state.projectedState = getProjectedState(projectedTimeMs);
+    const moonKm = computeMoonPositionKm(projectedTimeMs);
 
-        const showProjected = state.settings.orionDisplayMode !== 'live';
-        const showLive = state.settings.orionDisplayMode !== 'projected' && state.liveValid && state.liveState;
+    const showProjected = state.settings.orionDisplayMode !== 'live';
+    const showLive = state.settings.orionDisplayMode !== 'projected' && state.liveValid && state.liveState;
 
-        if (moonMesh) {
-          moonMesh.position.copy(toSceneVector(moonKm));
-        }
+    if (moonMesh) {
+      moonMesh.position.copy(toSceneVector(moonKm));
+    }
 
-        updateSolarSystem(projectedTimeMs);
+    updateSolarSystem(projectedTimeMs);
 
-        if (projectedMarker && state.projectedState) {
-          projectedMarker.position.copy(toSceneVector(state.projectedState.p));
-          projectedMarker.visible = showProjected && !projectedOrionRoot;
-        }
+    if (projectedMarker && state.projectedState) {
+      projectedMarker.position.copy(toSceneVector(state.projectedState.p));
+      projectedMarker.visible = showProjected && !projectedOrionRoot;
+    }
 
-        if (projectedOrionRoot && state.projectedState) {
-          projectedOrionRoot.visible = showProjected;
-          projectedOrionRoot.position.copy(toSceneVector(state.projectedState.p));
+    if (projectedOrionRoot && state.projectedState) {
+      projectedOrionRoot.visible = showProjected;
+      projectedOrionRoot.position.copy(toSceneVector(state.projectedState.p));
 
-          if (state.projectedState.v) {
-            const direction = new THREE.Vector3(
-              state.projectedState.v.x,
-              state.projectedState.v.y,
-              state.projectedState.v.z
-              ).normalize();
+      if (state.projectedState.v) {
+        const direction = new THREE.Vector3(
+          state.projectedState.v.x,
+          state.projectedState.v.y,
+          state.projectedState.v.z
+          ).normalize();
 
-            projectedOrionRoot.lookAt(projectedOrionRoot.position.clone().add(direction));
-          }
-        }
-
-        if (showLive) {
-          const livePosition = toSceneVector(state.liveState.p);
-
-          if (liveMarker) {
-            liveMarker.position.lerp(livePosition, 0.18);
-            liveMarker.visible = !liveOrionRoot;
-          }
-
-          if (liveHalo) {
-            liveHalo.visible = true;
-            liveHalo.position.copy(liveMarker.position);
-          }
-
-          if (liveOrionRoot) {
-            liveOrionRoot.visible = true;
-            liveOrionRoot.position.copy(livePosition);
-
-            if (state.liveState.v) {
-              const direction = new THREE.Vector3(
-                state.liveState.v.x,
-                state.liveState.v.y,
-                state.liveState.v.z
-                ).normalize();
-
-              liveOrionRoot.lookAt(liveOrionRoot.position.clone().add(direction));
-            }
-          }
-        } else {
-          if (liveMarker) liveMarker.visible = false;
-          if (liveHalo) liveHalo.visible = false;
-          if (liveOrionRoot) liveOrionRoot.visible = false;
-        }
-
-        applyOrionLocalTransforms();
-
-        if (state.transformControls && state.transformControls.object) {
-          const attachedRoot = state.transformControls.object.parent;
-          state.transformControls.visible = !!(attachedRoot && attachedRoot.visible);
-          state.transformControls.setMode(state.settings.transformMode);
-        }
-
-        syncTimelineUi(nowMs);
-        updateEarthRotation(nowMs);
-        updateHud(projectedTimeMs, moonKm);
-        updateCharts();
+        projectedOrionRoot.lookAt(projectedOrionRoot.position.clone().add(direction));
       }
+    }
+
+    if (showLive) {
+      const livePosition = toSceneVector(state.liveState.p);
+
+      if (liveMarker) {
+        liveMarker.position.lerp(livePosition, 0.18);
+        liveMarker.visible = !liveOrionRoot;
+      }
+
+      if (liveHalo) {
+        liveHalo.visible = true;
+        liveHalo.position.copy(liveMarker.position);
+      }
+
+      if (liveOrionRoot) {
+        liveOrionRoot.visible = true;
+        liveOrionRoot.position.copy(livePosition);
+
+        if (state.liveState.v) {
+          const direction = new THREE.Vector3(
+            state.liveState.v.x,
+            state.liveState.v.y,
+            state.liveState.v.z
+            ).normalize();
+
+          liveOrionRoot.lookAt(liveOrionRoot.position.clone().add(direction));
+        }
+      }
+    } else {
+      if (liveMarker) liveMarker.visible = false;
+      if (liveHalo) liveHalo.visible = false;
+      if (liveOrionRoot) liveOrionRoot.visible = false;
+    }
+
+    applyOrionLocalTransforms();
+
+    if (state.transformControls && state.transformControls.object) {
+      const attachedRoot = state.transformControls.object.parent;
+      state.transformControls.visible = !!(attachedRoot && attachedRoot.visible);
+      state.transformControls.setMode(state.settings.transformMode);
+    }
+
+    syncTimelineUi(nowMs);
+    updateEarthRotation(nowMs);
+    updateHud(projectedTimeMs, moonKm);
+    updateCharts();
+  }
 
 
 
@@ -3357,153 +4865,220 @@
 
 
     /* Resizes the renderer to match the viewport. */
-      function resizeRenderer() {
-        renderer.setSize(window.innerWidth, window.innerHeight, false);
-        camera.aspect = window.innerWidth / window.innerHeight;
-        camera.updateProjectionMatrix();
+  function resizeRenderer() {
+    renderer.setSize(window.innerWidth, window.innerHeight, false);
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+  }
+
+
+
+/* Returns true when the tracker is in compact mobile layout. */
+  function isMobileViewport() {
+    return window.innerWidth <= 880;
+  }
+
+/* Syncs foldable mobile overlays and compact button state. */
+  function syncResponsiveUi() {
+    const mobile = isMobileViewport();
+
+    if (!mobile) {
+      document.body.classList.remove('mobile-hud-open', 'mobile-timeline-open');
+    } else {
+      document.body.classList.toggle('mobile-hud-open', state.uiMobileHudOpen);
+      document.body.classList.toggle('mobile-timeline-open', state.uiMobileTimelineOpen);
+    }
+
+    if (refs.mobileHudToggle) {
+      refs.mobileHudToggle.classList.toggle('active', mobile && state.uiMobileHudOpen);
+    }
+
+    if (refs.mobileTimelineToggle) {
+      refs.mobileTimelineToggle.classList.toggle('active', mobile && state.uiMobileTimelineOpen);
+    }
+  }
+
+
+
+/* Renders desktop and WebXR frames, including XR flight, mounted travel controls, and XR travel tweening. */
+  function animate() {
+    renderer.setAnimationLoop(() => {
+      resizeRenderer();
+
+      const nowPerf = performance.now();
+      const nowMs = Date.now();
+      const deltaSeconds =
+      state.lastFrameMs > 0
+      ? Math.min(0.05, (nowPerf - state.lastFrameMs) / 1000)
+      : (1 / 60);
+
+      state.lastFrameMs = nowPerf;
+
+      if (renderer.xr.isPresenting) {
+        updateXRMovement(deltaSeconds);
+        updateXRTravel(nowPerf);
+        updateXRTravelMenuPose(deltaSeconds);
+        updateXRTravelMenuInput(nowPerf);
       }
 
-/* Advances tweening, keeps tracked views pointed at targets, updates labels, and renders the scene. */
-      function animate() {
-        requestAnimationFrame(animate);
-        resizeRenderer();
+      if (state.sceneReady) {
+        updateScene(nowMs);
+      }
 
-        const nowMs = Date.now();
+      if (!renderer.xr.isPresenting && state.cameraTween) {
+        const elapsed = nowPerf - state.cameraTween.startMs;
+        const t = Math.min(1, elapsed / state.cameraTween.durationMs);
+        const eased = 1 - Math.pow(1 - t, 3);
+        camera.position.lerpVectors(state.cameraTween.fromPosition, state.cameraTween.toPosition, eased);
+        controls.target.lerpVectors(state.cameraTween.fromTarget, state.cameraTween.toTarget, eased);
 
-        if (state.sceneReady) {
-          updateScene(nowMs);
+        if (t >= 1) {
+          state.cameraTween = null;
         }
+      }
 
-        if (state.cameraTween) {
-          const elapsed = performance.now() - state.cameraTween.startMs;
-          const t = Math.min(1, elapsed / state.cameraTween.durationMs);
-          const eased = 1 - Math.pow(1 - t, 3);
-          camera.position.lerpVectors(state.cameraTween.fromPosition, state.cameraTween.toPosition, eased);
-          controls.target.lerpVectors(state.cameraTween.fromTarget, state.cameraTween.toTarget, eased);
-
-          if (t >= 1) {
-            state.cameraTween = null;
-          }
-        }
-
+      if (!renderer.xr.isPresenting) {
         updatePresetLookTarget();
         controls.update();
-        updateSceneLabels();
-        renderer.render(scene, camera);
       }
 
+      updateSceneLabels();
+      renderer.render(scene, camera);
+    });
+  }
 
 
 
 
 
 
+/* Wires UI buttons, foldable mobile overlays, timeline scrubber, and persistence hooks. */
+  function bindUi() {
+    refs.cameraFit.addEventListener('click', () => focusPreset('fit'));
+    refs.cameraSun.addEventListener('click', () => focusPreset('sun'));
+    refs.cameraEarth.addEventListener('click', () => focusPreset('earth'));
+    refs.cameraMoon.addEventListener('click', () => focusPreset('moon'));
+    refs.cameraLive.addEventListener('click', () => focusPreset('live'));
+    refs.cameraProjected.addEventListener('click', () => focusPreset('projected'));
 
-/* Wires UI buttons, timeline scrubber, keyboard transform controls, scene click focus, and persistence hooks. */
-      function bindUi() {
-        refs.cameraFit.addEventListener('click', () => focusPreset('fit'));
-        refs.cameraSun.addEventListener('click', () => focusPreset('sun'));
-        refs.cameraEarth.addEventListener('click', () => focusPreset('earth'));
-        refs.cameraMoon.addEventListener('click', () => focusPreset('moon'));
-        refs.cameraLive.addEventListener('click', () => focusPreset('live'));
-        refs.cameraProjected.addEventListener('click', () => focusPreset('projected'));
+    refs.toggleTrails.addEventListener('click', async () => {
+      state.settings.showTrails = !state.settings.showTrails;
+      syncSettingsToGui();
+      await handleSettingsChange();
 
-        refs.toggleTrails.addEventListener('click', async () => {
-          state.settings.showTrails = !state.settings.showTrails;
-          syncSettingsToGui();
-          await handleSettingsChange();
+      if (state.activePreset === 'fit') {
+        focusFit();
+      }
+    });
 
-          if (state.activePreset === 'fit') {
-            focusFit();
-          }
-        });
+    refs.timelineRange.addEventListener('input', () => {
+      state.settings.timelineScrubActive = true;
+      state.settings.projectedTimelineRatio = Number(refs.timelineRange.value) / 1000;
+      syncTimelineUi(Date.now());
+    });
 
-        refs.timelineRange.addEventListener('input', () => {
-          state.settings.timelineScrubActive = true;
-          state.settings.projectedTimelineRatio = Number(refs.timelineRange.value) / 1000;
-          syncTimelineUi(Date.now());
-        });
+    refs.timelineRange.addEventListener('change', async () => {
+      await persistSettings();
+    });
 
-        refs.timelineRange.addEventListener('change', async () => {
-          await persistSettings();
-        });
+    refs.timelineNow.addEventListener('click', async () => {
+      state.settings.timelineScrubActive = false;
+      state.settings.projectedTimelineRatio = 1;
+      syncSettingsToGui();
+      syncTimelineUi(Date.now());
+      await persistSettings();
+    });
 
-        refs.timelineNow.addEventListener('click', async () => {
-          state.settings.timelineScrubActive = false;
-          state.settings.projectedTimelineRatio = 1;
-          syncSettingsToGui();
-          syncTimelineUi(Date.now());
-          await persistSettings();
-        });
+    if (refs.mobileHudToggle) {
+      refs.mobileHudToggle.addEventListener('click', () => {
+        state.uiMobileHudOpen = !state.uiMobileHudOpen;
+        syncResponsiveUi();
+      });
+    }
 
-        refs.saveConfig.addEventListener('click', () => saveConfigSnapshot());
-        refs.exportConfig.addEventListener('click', () => exportConfigFile());
-        refs.importConfig.addEventListener('click', () => refs.importFile.click());
-        refs.resetConfig.addEventListener('click', () => resetConfigState());
+    if (refs.mobileTimelineToggle) {
+      refs.mobileTimelineToggle.addEventListener('click', () => {
+        state.uiMobileTimelineOpen = !state.uiMobileTimelineOpen;
+        syncResponsiveUi();
+      });
+    }
 
-        refs.importFile.addEventListener('change', async (event) => {
-          const file = event.target.files && event.target.files[0];
-          if (!file) {
-            return;
-          }
-
-          try {
-            await importConfigFile(file);
-            refs.statusText.textContent = `config imported · ${file.name}`;
-          } catch (error) {
-            refs.statusText.textContent = `config import failed · ${error.message}`;
-          } finally {
-            refs.importFile.value = '';
-          }
-        });
-
-        refs.viewer.addEventListener('click', onViewerClick);
-        controls.addEventListener('end', scheduleCameraSave);
-        window.addEventListener('resize', resizeRenderer);
-        window.addEventListener('keydown', onViewerKeydown);
+    refs.importFile.addEventListener('change', async (event) => {
+      const file = event.target.files && event.target.files[0];
+      if (!file) {
+        return;
       }
 
-
-
-
-/* Boots the tracker once persistence, bodies, planets, model, labels, OEM, and transform controls are ready. */
-      async function boot() {
-        state.db = await openDatabase();
-        await restorePersistentState();
-
-        buildGui();
-        bindUi();
-        rebuildStars();
-
-        await loadBodies();
-        buildSolarSystem();
-
-        await Promise.all([loadOrionModel(), loadOemTrajectories()]);
-
-        buildLabels();
-        buildTransformControls();
-        applySettings();
-
-        state.sceneReady = true;
-        refs.oemBadge.textContent = 'OEM loaded';
-        refs.oemBadge.className = 'badge ok';
-
-        if (!localStorage.getItem(LOCAL_CAMERA_KEY)) {
-          focusFit();
-        } else {
-          syncTimelineUi(Date.now());
-        }
-
-        pollLiveTelemetry();
-        animate();
+      try {
+        await importConfigFile(file);
+        refs.statusText.textContent = `config imported · ${file.name}`;
+      } catch (error) {
+        refs.statusText.textContent = `config import failed · ${error.message}`;
+      } finally {
+        refs.importFile.value = '';
       }
+    });
+
+    refs.viewer.addEventListener('click', onViewerClick);
+    controls.addEventListener('end', scheduleCameraSave);
+    window.addEventListener('resize', () => {
+      resizeRenderer();
+      syncResponsiveUi();
+    });
+    window.addEventListener('keydown', onViewerKeydown);
+
+    syncResponsiveUi();
+  }
 
 
 
 
 
 
-      boot();
-    </script>
-  </body>
-  </html>
+/* Boots the tracker once file defaults, persistence, bodies, planets, model, labels, OEM, and transform controls are ready. */
+  async function boot() {
+    state.db = await openDatabase();
+    await restorePersistentState();
+
+    buildGui();
+    bindUi();
+    rebuildStars();
+
+    await loadBodies();
+    buildSolarSystem();
+
+    await Promise.all([loadOrionModel(), loadOemTrajectories()]);
+
+    buildLabels();
+    buildTransformControls();
+    setupXR();
+    applySettings();
+    syncResponsiveUi();
+
+    state.sceneReady = true;
+    refs.oemBadge.textContent = 'OEM loaded';
+    refs.oemBadge.className = 'badge ok';
+
+    if (!localStorage.getItem(LOCAL_CAMERA_KEY)) {
+      if (state.settings.timelineScrubActive) {
+        syncTimelineUi(Date.now());
+      } else {
+        focusFit();
+      }
+    } else {
+      syncTimelineUi(Date.now());
+    }
+
+    pollLiveTelemetry();
+    animate();
+  }
+
+
+
+
+
+
+  boot();
+</script>
+</body>
+</html>
