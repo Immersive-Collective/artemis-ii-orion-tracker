@@ -665,6 +665,50 @@
     }
   }
 </script>
+
+
+<script>
+  (() => {
+    const host = window.location.hostname.replace(/^\[|\]$/g, '');
+
+    const isLocalName =
+    host === 'localhost' ||
+    host === '0.0.0.0' ||
+    host === '::1' ||
+    host.endsWith('.local');
+
+    const isPrivateIPv4 =
+      /^127\./.test(host) ||                // loopback
+      /^10\./.test(host) ||                 // 10.0.0.0/8
+      /^192\.168\./.test(host) ||           // 192.168.0.0/16
+      /^169\.254\./.test(host) ||           // link-local
+      /^172\.(1[6-9]|2\d|3[0-1])\./.test(host); // 172.16.0.0 - 172.31.255.255
+
+      const isPrivateIPv6 =
+      host === '::1' ||                     // loopback
+      /^fe80:/i.test(host) ||               // link-local
+      /^(fc|fd)/i.test(host);               // unique local
+
+      if (isLocalName || isPrivateIPv4 || isPrivateIPv6) return;
+
+      const loadAnalytics = () => {
+        const s = document.createElement('script');
+        s.src = 'https://analytics.mielniczuk.com/script.js';
+        s.async = true;
+        s.dataset.websiteId = '09ba9fca-dda6-4d8b-bab8-43565403b995';
+        document.head.appendChild(s);
+      };
+
+      if ('requestIdleCallback' in window) {
+        requestIdleCallback(loadAnalytics);
+      } else {
+        window.addEventListener('load', loadAnalytics, { once: true });
+      }
+    })();
+  </script>
+
+
+
 </head>
 <body>
   <canvas id="viewer"></canvas>
@@ -4095,7 +4139,7 @@
 
 
 /* Applies current visual settings and refreshes UI state. */
-    
+
 /* Applies current visual settings and refreshes synced UI state. */
     function applySettings() {
       document.documentElement.style.setProperty('--bg-top', state.settings.backgroundTop);
